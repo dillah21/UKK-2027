@@ -1,0 +1,23 @@
+FITUR BARU: KELOLA KELAS DAN TAHUN AJARAN
+
+1. Ekstrak folder sistem_pelanggaran_murni_html ke folder web server (misalnya htdocs).
+2. Pastikan konfigurasi database pada koneksi.php sesuai.
+3. Buka phpMyAdmin, pilih database db_ukk_2026, lalu jalankan database_tambahan.sql.
+4. Pastikan tabel t_kelas sudah ada dan memiliki kolom id, nama, status_aktif.
+5. Buka aplikasi dan pilih menu Kelola Kelas untuk menambah, mengubah, serta mengaktifkan/nonaktifkan kelas.
+6. Pilih menu Tahun Ajaran untuk menambah dan mengubah tahun ajaran serta menentukan satu tahun ajaran aktif.
+7. Catatan pelanggaran baru otomatis menggunakan ID tahun ajaran yang aktif. Jika belum ada tahun ajaran aktif, simpan pelanggaran akan ditolak.
+
+Catatan:
+- Fitur ini menggunakan tabel t_tahun_ajaran dengan kolom nama, tanggal_mulai, tanggal_selesai, status_aktif.
+- Backup database sebelum menjalankan SQL.
+- SQL tidak membuat ulang tabel t_kelas karena struktur tabel itu sudah dipakai oleh fitur pelanggaran yang ada.
+
+8. Menu Laporan menyediakan filter tahun ajaran, kelas, rentang tanggal, dan status pembinaan. Gunakan tombol Cetak / Simpan PDF untuk mencetak atau menyimpan laporan sebagai PDF dari browser.
+
+
+FITUR KELOLA WALI KELAS
+- Jalankan kembali bagian CREATE TABLE t_wali_kelas pada database_tambahan.sql jika tabel ini belum ada.
+- Buka menu Kelola Wali Kelas.
+- Pilih kelas aktif, masukkan nama wali kelas, dan isi NIP jika tersedia.
+- Setiap kelas hanya dapat memiliki satu wali kelas; menyimpan penugasan untuk kelas yang sama akan memperbarui penugasan tersebut.

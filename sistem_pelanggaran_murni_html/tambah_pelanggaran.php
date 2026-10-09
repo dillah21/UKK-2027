@@ -23,8 +23,14 @@ if (isset($_POST['submit'])) {
     $nama_pelanggaran = $q_peln['nama'] ?? '';
     $poin             = $q_peln['poin'] ?? 0;
     $kategori_id      = $q_peln['pelanggaran_kategori_id'] ?? 1;
-    $tahun_ajaran_id  = 1;
+    $q_tahun = mysqli_query($koneksi, "SELECT id FROM t_tahun_ajaran WHERE status_aktif = 1 LIMIT 1");
+    $tahun_aktif = $q_tahun ? mysqli_fetch_assoc($q_tahun) : null;
+    $tahun_ajaran_id = (int)($tahun_aktif['id'] ?? 0);
+    if ($tahun_ajaran_id === 0) {
+        $error = 'Belum ada tahun ajaran aktif. Aktifkan tahun ajaran terlebih dahulu.';
+    }
 
+    if ($tahun_ajaran_id > 0) {
     $insert = "INSERT INTO t_pelanggaran_siswa 
         (tahun_ajaran_id, siswa_id, nama_siswa, kelas_id, nama_kelas, pelanggaran_id, nama_pelanggaran, pelanggaran_kategori_id, guru_id, nama_guru, tanggal, keterangan, poin, tindakan, status) 
         VALUES 
@@ -36,10 +42,16 @@ if (isset($_POST['submit'])) {
     } else {
         $error = "Gagal menyimpan data: " . mysqli_error($koneksi);
     }
+    }
 }
 ?>
 
 <h3>Form Input Pelanggaran Siswa</h3>
+<?php
+$q_tahun_tampil = mysqli_query($koneksi, "SELECT nama FROM t_tahun_ajaran WHERE status_aktif = 1 LIMIT 1");
+$tahun_tampil = $q_tahun_tampil ? mysqli_fetch_assoc($q_tahun_tampil) : null;
+?>
+<p><strong>Tahun Ajaran Aktif:</strong> <?= htmlspecialchars($tahun_tampil['nama'] ?? 'Belum ditentukan') ?></p>
 
 <?php if (isset($error)) echo "<p style='color:red;'>{$error}</p>"; ?>
 

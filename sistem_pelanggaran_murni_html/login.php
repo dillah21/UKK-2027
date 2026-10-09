@@ -1,52 +1,45 @@
 <?php
-include 'koneksi.php';
-
-// Otomatis buat tabel t_user jika belum ada agar tidak error fatal
-$create_table = "CREATE TABLE IF NOT EXISTS `t_user` (
-  `id` int(11) NOT NULL AUTO_INCREMENT,
-  `username` varchar(50) NOT NULL,
-  `password` varchar(255) NOT NULL,
-  `nama` varchar(100) NOT NULL,
-  `role_id` int(11) NOT NULL DEFAULT 1,
-  `status_aktif` tinyint(1) NOT NULL DEFAULT 1,
-  PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;";
-mysqli_query($koneksi, $create_table);
-
-// Tambah user default jika kosong
-$check_user = mysqli_query($koneksi, "SELECT * FROM t_user WHERE username='admin'");
-if ($check_user && mysqli_num_rows($check_user) == 0) {
-    mysqli_query($koneksi, "INSERT INTO t_user (username, password, nama, role_id, status_aktif) VALUES ('admin', 'adminpassword', 'Administrator', 1, 1)");
-}
-
-if (isset($_SESSION['user_id'])) {
-    header("Location: dashboard.php");
-    exit;
-}
+session_start();
+require_once 'koneksi.php';
 
 $error = '';
 
-if (isset($_POST['login'])) {
-    $username = mysqli_real_escape_string($koneksi, $_POST['username']);
-    $password = $_POST['password'];
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $email = trim($_POST['email'] ?? '');
+    $password = trim($_POST['password'] ?? '');
 
-    $query = "SELECT * FROM t_user WHERE username = '$username' AND status_aktif = 1 LIMIT 1";
-    $result = mysqli_query($koneksi, $query);
+    if (!empty($email) && !empty($password)) {
+        // Query ambil data user berdasarkan email
+        $stmt = $koneksi->prepare("SELECT * FROM t_users WHERE email = ?");
+        $stmt->bind_param("s", $email);
+        $stmt->execute();
+        $result = $stmt->get_result();
 
-    if ($result && mysqli_num_rows($result) > 0) {
-        $user = mysqli_fetch_assoc($result);
-        if (md5($password) === $user['password'] || password_verify($password, $user['password']) || $password === $user['password']) {
-            $_SESSION['user_id'] = $user['id'];
-            $_SESSION['username'] = $user['username'];
-            $_SESSION['nama'] = $user['nama'];
-            $_SESSION['role'] = $user['role_id'];
-            header("Location: dashboard.php");
-            exit;
+        if ($result && $result->num_rows > 0) {
+            $user = $result->fetch_assoc();
+            $db_password = trim($user['password']);
+
+            // Pengecekan password: teks biasa ATAU hash bcrypt
+            $is_valid = ($password === $db_password) || password_verify($password, $db_password);
+
+            if ($is_valid) {
+                // Simpan data login ke session
+                $_SESSION['user_id'] = $user['id'];
+                $_SESSION['nama'] = $user['name'] ?? $user['email'];
+                $_SESSION['role'] = $user['role'];
+
+                // Langsung lempar ke dashboard
+                header("Location: dashboard.php");
+                exit;
+            } else {
+                $error = "Password yang Anda masukkan salah!";
+            }
         } else {
-            $error = 'Password salah!';
+            $error = "Email '" . htmlspecialchars($email) . "' tidak ditemukan!";
         }
+        $stmt->close();
     } else {
-        $error = 'Username tidak ditemukan atau akun tidak aktif!';
+        $error = "Silakan isi Email dan Password!";
     }
 }
 ?>
@@ -54,29 +47,48 @@ if (isset($_POST['login'])) {
 <html lang="id">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login - Sistem Pelanggaran Siswa</title>
 </head>
 <body>
-    <h2>Login Sistem Pelanggaran Siswa</h2>
-    <hr>
 
-    <?php if (!empty($error)): ?>
-        <p style="color: red;"><?= $error; ?></p>
+<center>
+    <br><br><br>
+    <h2>Login Sistem Pelanggaran Siswa</h2>
+    <p>Silakan masuk untuk mengakses panel sistem</p>
+    <br>
+
+    <?php if ($error): ?>
+        <p style="color: red;"><b><?= htmlspecialchars($error); ?></b></p>
+        <br>
     <?php endif; ?>
 
-    <form method="POST" action="">
-        <div>
-            <label>Username:</label><br>
-            <input type="text" name="username" required autofocus>
-        </div>
-        <br>
-        <div>
-            <label>Password:</label><br>
-            <input type="password" name="password" required>
-        </div>
-        <br>
-        <button type="submit" name="login">Login / Masuk</button>
+    <form method="POST" action="login.php">
+        <table border="0" cellpadding="6" cellspacing="0" align="center">
+            <tr>
+                <td align="right"><label for="email"><b>Email Account</b></label></td>
+                <td>:</td>
+                <td><input type="email" id="email" name="email" placeholder="contoh: user1@sekolah.sch.id" required autofocus size="28"></td>
+            </tr>
+            <tr>
+                <td align="right"><label for="password"><b>Kata Sandi</b></label></td>
+                <td>:</td>
+                <td><input type="password" id="password" name="password" placeholder="Masukkan password" required size="28"></td>
+            </tr>
+            <tr>
+                <td></td>
+                <td></td>
+                <td align="left">
+                    <br>
+                    <button type="submit" style="padding: 6px 18px; cursor: pointer;"><b>Masuk</b></button>
+                </td>
+            </tr>
+        </table>
     </form>
+
+    <br><br><br>
+    <hr width="50%">
+    <p>&copy; 2026 UKK - Sistem Informasi Pelanggaran Siswa | Dikembangkan oleh: <b>AZRIL AKBAR FAWZI ABDILLAH</b></p>
+</center>
+
 </body>
 </html>
