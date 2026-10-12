@@ -2,124 +2,119 @@
 session_start();
 require_once 'koneksi.php';
 
-// Pastikan user sudah login
 if (!isset($_SESSION['user_id'])) {
     header("Location: login.php");
     exit;
 }
 
-$message = '';
-$user_id = $_SESSION['user_id']; // Mengambil ID dari akun yang sedang login
+$user_id = $_SESSION['user_id'];
+$pesan = '';
+$error = '';
 
-// Fetch Data User yang Sedang Login
-$stmt = $koneksi->prepare("SELECT * FROM t_users WHERE id = ?");
+// Ambil data user
+$stmt = $koneksi->prepare("SELECT name, email, password FROM t_users WHERE id = ?");
 $stmt->bind_param("i", $user_id);
 $stmt->execute();
-$current_user = $stmt->get_result()->fetch_assoc();
+$user = $stmt->get_result()->fetch_assoc();
 $stmt->close();
 
-// Handling Update Profil & Password
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $nama = trim($_POST['name'] ?? '');
+    $nama = trim($_POST['nama'] ?? '');
     $email = trim($_POST['email'] ?? '');
-    $pass_lama = $_POST['pass_lama'] ?? '';
-    $pass_baru = $_POST['pass_baru'] ?? '';
-    $konfirm_pass = $_POST['konfirm_pass'] ?? '';
+    $password_lama = trim($_POST['password_lama'] ?? '');
+    $password_baru = trim($_POST['password_baru'] ?? '');
 
     if (!empty($nama) && !empty($email)) {
-        if (!empty($pass_lama) || !empty($pass_baru)) {
-            // Cek password lama (dukung hash bcrypt maupun plain text)
-            $is_valid = ($pass_lama === $current_user['password']) || password_verify($pass_lama, $current_user['password']);
-            
-            if ($is_valid) {
-                if ($pass_baru === $konfirm_pass && strlen($pass_baru) >= 4) {
-                    $hash_baru = password_hash($pass_baru, PASSWORD_DEFAULT);
-                    $update_stmt = $koneksi->prepare("UPDATE t_users SET name=?, email=?, password=? WHERE id=?");
-                    $update_stmt->bind_param("sssi", $nama, $email, $hash_baru, $user_id);
-                    if ($update_stmt->execute()) {
-                        $message = "Profil dan kata sandi berhasil diperbarui!";
-                        $_SESSION['nama'] = $nama;
-                    } else {
-                        $message = "Gagal memperbarui profil: " . $update_stmt->error;
-                    }
-                    $update_stmt->close();
-                } else {
-                    $message = "Konfirmasi kata sandi baru tidak cocok atau kurang dari 4 karakter!";
-                }
-            } else {
-                $message = "Kata sandi lama salah!";
-            }
-        } else {
-            // Hanya update nama dan email
-            $update_stmt = $koneksi->prepare("UPDATE t_users SET name=?, email=? WHERE id=?");
-            $update_stmt->bind_param("ssi", $nama, $email, $user_id);
-            if ($update_stmt->execute()) {
-                $message = "Data profil berhasil diperbarui!";
-                $_SESSION['nama'] = $nama;
-            } else {
-                $message = "Gagal memperbarui profil: " . $update_stmt->error;
-            }
-            $update_stmt->close();
-        }
-    } else {
-        $message = "Nama dan email wajib diisi!";
-    }
+        // Cek email ganda
+        $stmt_cek = $koneksi->prepare("SELECT id FROM t_users WHERE email = ? AND id != ?");
+        $stmt_cek->bind_param("si", $email, $user_id);
+        $stmt_cek->execute();
+        $res_cek = $stmt_cek->get_result();
 
-    // Refresh Data User Setelah Update
-    $stmt = $koneksi->prepare("SELECT * FROM t_users WHERE id = ?");
-    $stmt->bind_param("i", $user_id);
-    $stmt->execute();
-    $current_user = $stmt->get_result()->fetch_assoc();
-    $stmt->close();
+        if ($res_cek->num_rows > 0) {
+            $error = "Email sudah digunakan oleh pengguna lain!";
+        } else {
+            // Update nama dan email
+            $stmt_up = $koneksi->prepare("UPDATE t_users SET name = ?, email = ? WHERE id = ?");
+            $stmt_up->bind_param("ssi", $nama, $email, $user_id);
+            $stmt_up->execute();
+            $stmt_up->close();
+
+            $_SESSION['nama'] = $nama;
+            $user['name'] = $nama;
+            $user['email'] = $email;
+            $pesan = "Profil berhasil diperbarui!";
+
+            // Jika mau ganti password sekalian
+            if (!empty($password_baru)) {
+                $db_pass = trim($user['password']);
+                $is_valid = ($password_lama === $db_pass) || password_verify($password_lama, $db_pass);
+
+                if ($is_valid) {
+                    $stmt_pass = $koneksi->prepare("UPDATE t_users SET password = ? WHERE id = ?");
+                    $stmt_pass->bind_param("si", $password_baru, $user_id);
+                    $stmt_pass->execute();
+                    $stmt_pass->close();
+                    $pesan = "Profil dan Password berhasil diperbarui!";
+                } else {
+                    $error = "Profil diperbarui, tetapi Password Lama salah!";
+                }
+            }
+        }
+        $stmt_cek->close();
+    } else {
+        $error = "Nama dan Email wajib diisi!";
+    }
 }
 
 include 'header.php';
 ?>
 
-<h2>Profil Saya</h2>
-<p>Informasi akun yang sedang aktif digunakan saat ini.</p>
+<h2>Profil Saya & Ganti Password</h2>
+<p>Kelola informasi akun dan kata sandi Anda.</p>
 
-<?php if ($message): ?>
-    <p><b><?= htmlspecialchars($message); ?></b></p>
-    <hr>
+<hr>
+
+<?php if ($pesan): ?>
+    <p style="color: green;"><b><?= htmlspecialchars($pesan); ?></b></p>
+<?php endif; ?>
+
+<?php if ($error): ?>
+    <p style="color: red;"><b><?= htmlspecialchars($error); ?></b></p>
 <?php endif; ?>
 
 <form method="POST" action="profil.php">
-    <table border="0" cellpadding="5">
+    <table border="0" cellpadding="8" cellspacing="0">
         <tr>
-            <td>ID Pengguna</td>
-            <td>: <b>#<?= $current_user['id']; ?></b></td>
+            <td align="right"><label for="nama"><b>Nama Lengkap</b></label></td>
+            <td>:</td>
+            <td><input type="text" id="nama" name="nama" value="<?= htmlspecialchars($user['name'] ?? ''); ?>" required size="30"></td>
         </tr>
         <tr>
-            <td><label for="name">Nama Lengkap</label></td>
-            <td>: <input type="text" id="name" name="name" value="<?= htmlspecialchars($current_user['name'] ?? ''); ?>" required size="30"></td>
+            <td align="right"><label for="email"><b>Email Account</b></label></td>
+            <td>:</td>
+            <td><input type="email" id="email" name="email" value="<?= htmlspecialchars($user['email'] ?? ''); ?>" required size="30"></td>
         </tr>
         <tr>
-            <td><label for="email">Email</label></td>
-            <td>: <input type="email" id="email" name="email" value="<?= htmlspecialchars($current_user['email'] ?? ''); ?>" required size="30"></td>
+            <td colspan="3"><hr><b>Ganti Password (Opsional)</b></td>
         </tr>
         <tr>
-            <td>Role / Hak Akses</td>
-            <td>: <b><?= htmlspecialchars(strtoupper($current_user['role'] ?? 'USER')); ?></b></td>
+            <td align="right"><label for="password_lama"><b>Password Lama</b></label></td>
+            <td>:</td>
+            <td><input type="password" id="password_lama" name="password_lama" size="30"></td>
         </tr>
         <tr>
-            <td colspan="2"><br><b>Ganti Kata Sandi (Kosongkan jika tidak ingin mengubah)</b></td>
-        </tr>
-        <tr>
-            <td><label for="pass_lama">Kata Sandi Lama</label></td>
-            <td>: <input type="password" id="pass_lama" name="pass_lama" placeholder="Masukkan kata sandi lama"></td>
-        </tr>
-        <tr>
-            <td><label for="pass_baru">Kata Sandi Baru</label></td>
-            <td>: <input type="password" id="pass_baru" name="pass_baru" placeholder="Minimal 4 karakter"></td>
-        </tr>
-        <tr>
-            <td><label for="konfirm_pass">Konfirmasi Kata Sandi Baru</label></td>
-            <td>: <input type="password" id="konfirm_pass" name="konfirm_pass" placeholder="Ulangi kata sandi baru"></td>
+            <td align="right"><label for="password_baru"><b>Password Baru</b></label></td>
+            <td>:</td>
+            <td><input type="password" id="password_baru" name="password_baru" size="30"></td>
         </tr>
         <tr>
             <td></td>
-            <td><button type="submit">Simpan Perubahan</button></td>
+            <td></td>
+            <td>
+                <br>
+                <button type="submit" style="padding: 5px 15px; cursor: pointer;"><b>Simpan Perubahan</b></button>
+            </td>
         </tr>
     </table>
 </form>

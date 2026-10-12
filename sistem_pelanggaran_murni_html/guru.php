@@ -160,8 +160,10 @@ include 'header.php';
                     <td><?= htmlspecialchars($row['no_hp'] ?? '-'); ?></td>
                     <td><?= $row['status_aktif'] ? 'Aktif' : 'Non-Aktif'; ?></td>
                     <td>
-                        <a href="guru.php?edit=<?= $row['id']; ?>">Edit</a> | 
-                        <a href="guru.php?hapus=<?= $row['id']; ?>" onclick="return confirm('Yakin ingin menghapus data guru ini?')">Hapus</a>
+                        <a href="guru.php?edit=<?= $row['id']; ?>"></a> | 
+                        <button type="button" class="btn btn-warning">Edit</button>
+                        <a href="guru.php?hapus=<?= $row['id']; ?>" onclick="return confirm('Yakin ingin menghapus data guru ini?')"></a>
+                        <button type="button" class="btn btn-danger">Hapus</button>
                     </td>
                 </tr>
             <?php endwhile; ?>

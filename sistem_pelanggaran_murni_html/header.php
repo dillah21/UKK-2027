@@ -1,3 +1,8 @@
+<?php
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+?>
 <!DOCTYPE html>
 <html lang="id">
 <head>
@@ -6,11 +11,11 @@
 </head>
 <body>
 
-<?php
+<?php 
+// Otomatis memunculkan tombol kembali ke dashboard di semua menu kecuali di dashboard itu sendiri
 $current_page = basename($_SERVER['PHP_SELF']);
-
 if ($current_page !== 'dashboard.php'): 
 ?>
-    <p><a href="dashboard.php">&larr; Kembali ke Dashboard</a></p>
+    <p><a href="dashboard.php"><b>&larr; Kembali ke Dashboard</b></a></p>
     <hr>
 <?php endif; ?>
