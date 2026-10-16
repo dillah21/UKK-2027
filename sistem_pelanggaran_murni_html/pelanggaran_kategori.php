@@ -1,162 +1,132 @@
 <?php
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+ini_set('display_errors', '1');
+error_reporting(E_ALL);
+
 require_once 'auth.php';
 require_once 'koneksi.php';
 
 $message = '';
 
-// Handling Tambah / Edit Kategori Pelanggaran
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $action = $_POST['action'] ?? '';
-    $id = $_POST['id'] ?? '';
-    $nama = trim($_POST['nama'] ?? '');
-    $deskripsi = trim($_POST['deskripsi'] ?? '');
-    $status_aktif = isset($_POST['status_aktif']) ? 1 : 0;
-
-    if ($action === 'tambah') {
-        $stmt = $koneksi->prepare("INSERT INTO t_pelanggaran_kategori (nama, deskripsi, status_aktif) VALUES (?, ?, ?)");
-        $stmt->bind_param("ssi", $nama, $deskripsi, $status_aktif);
-        if ($stmt->execute()) {
-            $message = "Kategori pelanggaran berhasil ditambahkan.";
-        } else {
-            $message = "Gagal menambahkan data: " . $stmt->error;
-        }
-        $stmt->close();
-    } elseif ($action === 'edit' && !empty($id)) {
-        $stmt = $koneksi->prepare("UPDATE t_pelanggaran_kategori SET nama=?, deskripsi=?, status_aktif=?, updated_at=NOW() WHERE id=?");
-        $stmt->bind_param("ssii", $nama, $deskripsi, $status_aktif, $id);
-        if ($stmt->execute()) {
-            $message = "Kategori pelanggaran berhasil diperbarui.";
-        } else {
-            $message = "Gagal memperbarui data: " . $stmt->error;
-        }
-        $stmt->close();
-    }
-}
-
-// Handling Hapus Kategori Pelanggaran
 if (isset($_GET['hapus'])) {
     $id_hapus = intval($_GET['hapus']);
-    $stmt = $koneksi->prepare("DELETE FROM t_pelanggaran_kategori WHERE id=?");
-    $stmt->bind_param("i", $id_hapus);
-    if ($stmt->execute()) {
-        $message = "Kategori pelanggaran berhasil dihapus.";
-    } else {
-        $message = "Gagal menghapus data: " . $stmt->error;
+    $stmt = $koneksi->prepare("DELETE FROM t_pelanggaran_kategori WHERE id = ?");
+    if (!$stmt) {
+        $stmt = $koneksi->prepare("DELETE FROM t_pelanggaran WHERE id = ?");
     }
-    $stmt->close();
+    if ($stmt) {
+        $stmt->bind_param("i", $id_hapus);
+        if ($stmt->execute()) {
+            $message = "Kategori pelanggaran berhasil dihapus.";
+        } else {
+            $message = "Gagal menghapus: " . $stmt->error;
+        }
+        $stmt->close();
+    }
 }
 
-// Handling Mode Edit
-$edit_data = null;
-if (isset($_GET['edit'])) {
-    $id_edit = intval($_GET['edit']);
-    $stmt = $koneksi->prepare("SELECT * FROM t_pelanggaran_kategori WHERE id=?");
-    $stmt->bind_param("i", $id_edit);
-    $stmt->execute();
-    $edit_data = $stmt->get_result()->fetch_assoc();
-    $stmt->close();
+$result_kat = @$koneksi->query("SELECT * FROM t_pelanggaran_kategori ORDER BY id DESC");
+if (!$result_kat) {
+    $result_kat = $koneksi->query("SELECT * FROM t_pelanggaran ORDER BY id DESC");
 }
-
-// Handling Pencarian & Fetch Data
-$search = trim($_GET['search'] ?? '');
-if (!empty($search)) {
-    $param = "%" . $search . "%";
-    $stmt = $koneksi->prepare("SELECT * FROM t_pelanggaran_kategori WHERE nama LIKE ? OR deskripsi LIKE ? ORDER BY id DESC");
-    $stmt->bind_param("ss", $param, $param);
-    $stmt->execute();
-    $result = $stmt->get_result();
-} else {
-    $result = $koneksi->query("SELECT * FROM t_pelanggaran_kategori ORDER BY id DESC");
-}
-
-include 'header.php';
 ?>
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Kategori Pelanggaran - Sistem Pelanggaran Siswa</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.1.3/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <style>
+        body { background-color: #f8f9fa; }
+        .sidebar { min-height: 100vh; background-color: #212529; color: #fff; }
+        .sidebar a { color: #cfd2d6; text-decoration: none; }
+        .sidebar a:hover, .sidebar .active { color: #fff; background-color: #007bff; border-radius: 4px; }
+    </style>
+</head>
+<body>
 
-<h2>Kelola Pelanggaran Kategori</h2>
+<div class="container-fluid">
+    <div class="row">
+        <!-- SIDEBAR -->
+        <nav class="col-md-3 col-lg-2 d-md-block sidebar p-3">
+            <h4 class="text-white mb-4">My Website</h4>
+            <ul class="nav flex-column">
+                <li class="nav-item mb-2"><a href="dashboard.php" class="nav-link p-2 <?= basename($_SERVER['PHP_SELF']) == 'dashboard.php' ? 'active' : ''; ?>"><i class="fas fa-home mr-2"></i> Dashboard</a></li>
+                <li class="nav-item mb-2"><a href="siswa.php" class="nav-link p-2 <?= basename($_SERVER['PHP_SELF']) == 'siswa.php' ? 'active' : ''; ?>"><i class="fas fa-user-graduate mr-2"></i> Data Siswa</a></li>
+                <li class="nav-item mb-2"><a href="guru.php" class="nav-link p-2 <?= basename($_SERVER['PHP_SELF']) == 'guru.php' ? 'active' : ''; ?>"><i class="fas fa-chalkboard-teacher mr-2"></i> Data Guru</a></li>
+                <li class="nav-item mb-2"><a href="kelas.php" class="nav-link p-2 <?= basename($_SERVER['PHP_SELF']) == 'kelas.php' ? 'active' : ''; ?>"><i class="fas fa-school mr-2"></i> Kelas</a></li>
+                <li class="nav-item mb-2"><a href="wali_kelas.php" class="nav-link p-2 <?= basename($_SERVER['PHP_SELF']) == 'wali_kelas.php' ? 'active' : ''; ?>"><i class="fas fa-user-tie mr-2"></i> Wali Kelas</a></li>
+                <li class="nav-item mb-2"><a href="tahun_ajaran.php" class="nav-link p-2 <?= basename($_SERVER['PHP_SELF']) == 'tahun_ajaran.php' ? 'active' : ''; ?>"><i class="fas fa-calendar-alt mr-2"></i> Tahun Ajaran</a></li>
+                <li class="nav-item mb-2"><a href="pelanggaran_kategori.php" class="nav-link p-2 <?= basename($_SERVER['PHP_SELF']) == 'pelanggaran_kategori.php' ? 'active' : ''; ?>"><i class="fas fa-tags mr-2"></i> Kategori Pelanggaran</a></li>
+                <li class="nav-item mb-2"><a href="pelanggaran.php" class="nav-link p-2 <?= basename($_SERVER['PHP_SELF']) == 'pelanggaran.php' ? 'active' : ''; ?>"><i class="fas fa-exclamation-triangle mr-2"></i> Data Pelanggaran</a></li>
+                <li class="nav-item mb-2"><a href="laporan.php" class="nav-link p-2 <?= basename($_SERVER['PHP_SELF']) == 'laporan.php' ? 'active' : ''; ?>"><i class="fas fa-file-alt mr-2"></i> Laporan & Rekap</a></li>
+                <li class="nav-item mb-2"><a href="about_me.php" class="nav-link p-2 <?= basename($_SERVER['PHP_SELF']) == 'about_me.php' ? 'active' : ''; ?>"><i class="fas fa-info-circle mr-2"></i> Tentang Saya</a></li>
+            </ul>
+            <hr class="bg-secondary">
+            <ul class="nav flex-column">
+                <li class="nav-item"><a href="logout.php" class="nav-link text-danger p-2"><i class="fas fa-sign-out-alt mr-2"></i> Logout</a></li>
+            </ul>
+        </nav>
 
-<?php if ($message): ?>
-    <p><b><?= htmlspecialchars($message); ?></b></p>
-    <hr>
-<?php endif; ?>
+        <!-- KONTEN -->
+        <main class="col-md-9 ml-sm-auto col-lg-10 px-4 py-4">
+            <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pb-2 mb-3 border-bottom">
+                <h1 class="h2">Kategori & Jenis Pelanggaran</h1>
+                <a href="tambah_kategori.php" class="btn btn-primary btn-sm"><i class="fas fa-plus mr-1"></i> Tambah Kategori Baru</a>
+            </div>
+            <p class="text-muted">Kelola jenis tata tertib, tingkatan sanksi, dan bobot poin pelanggaran.</p>
 
-<!-- Form Tambah / Edit Kategori -->
-<h3><?= $edit_data ? 'Edit Pelanggaran Kategori' : 'Tambah Pelanggaran Kategori Baru'; ?></h3>
-<form method="POST" action="pelanggaran_kategori.php">
-    <input type="hidden" name="action" value="<?= $edit_data ? 'edit' : 'tambah'; ?>">
-    <?php if ($edit_data): ?>
-        <input type="hidden" name="id" value="<?= $edit_data['id']; ?>">
-    <?php endif; ?>
+            <?php if (!empty($message)): ?>
+                <div class="alert alert-info alert-dismissible fade show" role="alert">
+                    <?= htmlspecialchars($message); ?>
+                    <button type="button" class="close" data-dismiss="alert"><span aria-hidden="true">&times;</span></button>
+                </div>
+            <?php endif; ?>
 
-    <table border="0" cellpadding="5">
-        <tr>
-            <td><label for="nama">Nama Kategori</label></td>
-            <td>: <input type="text" id="nama" name="nama" value="<?= htmlspecialchars($edit_data['nama'] ?? ''); ?>" required></td>
-        </tr>
-        <tr>
-            <td><label for="deskripsi">Deskripsi</label></td>
-            <td>: <textarea id="deskripsi" name="deskripsi" rows="3" cols="30" required><?= htmlspecialchars($edit_data['deskripsi'] ?? ''); ?></textarea></td>
-        </tr>
-        <tr>
-            <td><label for="status_aktif">Status Aktif</label></td>
-            <td>: <input type="checkbox" id="status_aktif" name="status_aktif" <?= (isset($edit_data) ? ($edit_data['status_aktif'] ? 'checked' : '') : 'checked'); ?>> Aktif</td>
-        </tr>
-        <tr>
-            <td></td>
-            <td>
-                <button type="submit"><?= $edit_data ? 'Simpan Perubahan' : 'Tambah Kategori'; ?></button>
-                <?php if ($edit_data): ?>
-                    <a href="pelanggaran_kategori.php">Batal Edit</a>
-                <?php endif; ?>
-            </td>
-        </tr>
-    </table>
-</form>
-
-<hr>
-
-<!-- Form Pencarian -->
-<h3>Daftar Pelanggaran Kategori</h3>
-<form method="GET" action="pelanggaran_kategori.php">
-    <label for="search">Cari Kategori:</label>
-    <input type="text" id="search" name="search" placeholder="Nama atau deskripsi..." value="<?= htmlspecialchars($search); ?>">
-    <button type="submit">Cari</button>
-    <?php if (!empty($search)): ?>
-        <a href="pelanggaran_kategori.php">Reset</a>
-    <?php endif; ?>
-</form>
-<br>
-
-<!-- Tabel Data Kategori Pelanggaran -->
-<table border="1" cellpadding="8" cellspacing="0">
-    <thead>
-        <tr>
-            <th>No</th>
-            <th>Nama Kategori</th>
-            <th>Deskripsi</th>
-            <th>Status</th>
-            <th>Aksi</th>
-        </tr>
-    </thead>
-    <tbody>
-        <?php if ($result && $result->num_rows > 0): ?>
-            <?php $no = 1; while ($row = $result->fetch_assoc()): ?>
-                <tr>
-                    <td><?= $no++; ?></td>
-                    <td><?= htmlspecialchars($row['nama']); ?></td>
-                    <td><?= htmlspecialchars($row['deskripsi']); ?></td>
-                    <td><?= $row['status_aktif'] ? 'Aktif' : 'Non-Aktif'; ?></td>
-                    <td>
-                        <a href="pelanggaran_kategori.php?edit=<?= $row['id']; ?>">Edit</a> | 
-                        <a href="pelanggaran_kategori.php?hapus=<?= $row['id']; ?>" onclick="return confirm('Yakin ingin menghapus data ini?')">Hapus</a>
-                    </td>
-                </tr>
-            <?php endwhile; ?>
-        <?php else: ?>
-            <tr>
-                <td colspan="5" align="center">Data pelanggaran kategori tidak ditemukan.</td>
-            </tr>
-        <?php endif; ?>
-    </tbody>
-</table>
-
-<?php include 'footer.php'; ?>
+            <div class="card shadow-sm">
+                <div class="card-header bg-white"><h5 class="mb-0">Daftar Jenis Pelanggaran</h5></div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-striped table-bordered mb-0">
+                            <thead class="thead-dark text-center">
+                                <tr>
+                                    <th style="width: 8%;">No</th>
+                                    <th style="width: 45%;">Nama Pelanggaran</th>
+                                    <th style="width: 20%;">Kategori / Tingkat</th>
+                                    <th style="width: 15%;">Poin Sanksi</th>
+                                    <th style="width: 12%;">Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php if ($result_kat && $result_kat->num_rows > 0): ?>
+                                    <?php $no = 1; while ($row = $result_kat->fetch_assoc()): ?>
+                                        <tr>
+                                            <td class="text-center"><?= $no++; ?></td>
+                                            <td><?= htmlspecialchars($row['nama'] ?? $row['nama_pelanggaran'] ?? '-'); ?></td>
+                                            <td class="text-center"><?= htmlspecialchars($row['kategori'] ?? $row['jenis'] ?? 'Umum'); ?></td>
+                                            <td class="text-center font-weight-bold text-danger"><?= htmlspecialchars($row['poin'] ?? '0'); ?> Poin</td>
+                                            <td class="text-center">
+                                                <a href="pelanggaran_kategori.php?hapus=<?= $row['id']; ?>" class="btn btn-sm btn-danger" onclick="return confirm('Hapus kategori ini?')"><i class="fas fa-trash"></i></a>
+                                            </td>
+                                        </tr>
+                                    <?php endwhile; ?>
+                                <?php else: ?>
+                                    <tr><td colspan="5" class="text-center py-4 text-muted">Belum ada jenis/kategori pelanggaran.</td></tr>
+                                <?php endif; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            <footer class="mt-5 py-3 text-center text-muted border-top small">&copy; 2026 - Sistem Informasi Pelanggaran Siswa</footer>
+        </main>
+    </div>
+</div>
+<script src="https://code.jquery.com/jquery-3.3.1.slim.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@4.1.3/dist/js/bootstrap.min.js"></script>
+</body>
+</html>

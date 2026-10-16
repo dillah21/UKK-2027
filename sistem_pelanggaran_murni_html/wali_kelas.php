@@ -1,179 +1,157 @@
 <?php
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+ini_set('display_errors', '1');
+error_reporting(E_ALL);
+
 require_once 'auth.php';
 require_once 'koneksi.php';
 
 $message = '';
 
-// Handling Tambah / Edit Wali Kelas
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $action = $_POST['action'] ?? '';
-    $id = $_POST['id'] ?? '';
-    $kelas_id = intval($_POST['kelas_id'] ?? 0);
-    $guru_id = intval($_POST['guru_id'] ?? 0);
-
-    if ($kelas_id > 0 && $guru_id > 0) {
-        if ($action === 'tambah') {
-            // Cek apakah kelas sudah punya wali
-            $check = $koneksi->query("SELECT id FROM t_wali_kelas WHERE kelas_id = $kelas_id");
-            if ($check && $check->num_rows > 0) {
-                $message = "Kelas ini sudah memiliki wali kelas!";
-            } else {
-                $stmt = $koneksi->prepare("INSERT INTO t_wali_kelas (kelas_id, guru_id) VALUES (?, ?)");
-                $stmt->bind_param("ii", $kelas_id, $guru_id);
-                if ($stmt->execute()) {
-                    $message = "Wali kelas berhasil ditambahkan.";
-                } else {
-                    $message = "Gagal menambahkan wali kelas: " . $stmt->error;
-                }
-                $stmt->close();
-            }
-        } elseif ($action === 'edit' && !empty($id)) {
-            $stmt = $koneksi->prepare("UPDATE t_wali_kelas SET kelas_id=?, guru_id=? WHERE id=?");
-            $stmt->bind_param("iii", $kelas_id, $guru_id, $id);
-            if ($stmt->execute()) {
-                $message = "Wali kelas berhasil diperbarui.";
-            } else {
-                $message = "Gagal memperbarui wali kelas: " . $stmt->error;
-            }
-            $stmt->close();
-        }
-    } else {
-        $message = "Silakan pilih kelas dan guru dengan benar!";
-    }
-}
-
-// Handling Hapus Wali Kelas
 if (isset($_GET['hapus'])) {
     $id_hapus = intval($_GET['hapus']);
-    $stmt = $koneksi->prepare("DELETE FROM t_wali_kelas WHERE id=?");
-    $stmt->bind_param("i", $id_hapus);
-    if ($stmt->execute()) {
-        $message = "Wali kelas berhasil dihapus.";
-    } else {
-        $message = "Gagal menghapus wali kelas: " . $stmt->error;
+    $stmt = $koneksi->prepare("DELETE FROM t_wali_kelas WHERE id = ?");
+    if ($stmt) {
+        $stmt->bind_param("i", $id_hapus);
+        if ($stmt->execute()) {
+            $message = "Data wali kelas berhasil dihapus.";
+        } else {
+            $message = "Gagal menghapus data: " . $stmt->error;
+        }
+        $stmt->close();
     }
-    $stmt->close();
 }
 
-// Handling Mode Edit
-$edit_data = null;
-if (isset($_GET['edit'])) {
-    $id_edit = intval($_GET['edit']);
-    $stmt = $koneksi->prepare("SELECT * FROM t_wali_kelas WHERE id=?");
-    $stmt->bind_param("i", $id_edit);
-    $stmt->execute();
-    $edit_data = $stmt->get_result()->fetch_assoc();
-    $stmt->close();
+// Deteksi struktur t_wali_kelas secara dinamis
+$col_wk = [];
+$res_wk = $koneksi->query("SHOW COLUMNS FROM t_wali_kelas");
+if ($res_wk) {
+    while ($r = $res_wk->fetch_assoc()) {
+        $col_wk[] = $r['Field'];
+    }
 }
 
-// Fetch Master Kelas & Master Guru untuk Option Dropdown
-$list_kelas = $koneksi->query("SELECT * FROM t_kelas ORDER BY nama ASC");
-$list_guru = $koneksi->query("SELECT * FROM t_guru WHERE status_aktif = 1 ORDER BY nama ASC");
+$fk_guru = in_array('guru_id', $col_wk) ? 'guru_id' : (in_array('id_guru', $col_wk) ? 'id_guru' : '');
+$fk_kelas = in_array('kelas_id', $col_wk) ? 'kelas_id' : (in_array('id_kelas', $col_wk) ? 'id_kelas' : '');
 
-// Fetch Data List Wali Kelas dengan JOIN t_kelas dan t_guru
-$sql_wali = "SELECT w.id, k.nama AS nama_kelas, g.nip, g.nama AS nama_guru 
-            FROM t_wali_kelas w
-            JOIN t_kelas k ON w.kelas_id = k.id
-            JOIN t_guru g ON w.guru_id = g.id
-            ORDER BY k.nama ASC";
-$result_wali = $koneksi->query($sql_wali);
+$select = ["w.*"];
+$joins = [];
 
-include 'header.php';
+if ($fk_guru) {
+    $select[] = "COALESCE(g.nama, '-') AS nama_guru";
+    $joins[] = "LEFT JOIN t_guru g ON w.$fk_guru = g.id";
+} else {
+    $select[] = "'-' AS nama_guru";
+}
+
+if ($fk_kelas) {
+    $select[] = "COALESCE(k.nama, '-') AS nama_kelas";
+    $joins[] = "LEFT JOIN t_kelas k ON w.$fk_kelas = k.id";
+} else {
+    $select[] = "'-' AS nama_kelas";
+}
+
+$sql = "SELECT " . implode(", ", $select) . " FROM t_wali_kelas w " . implode(" ", $joins) . " ORDER BY w.id DESC";
+$result_wali = @$koneksi->query($sql);
+if (!$result_wali) {
+    $result_wali = $koneksi->query("SELECT * FROM t_wali_kelas ORDER BY id DESC");
+}
 ?>
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Wali Kelas - Sistem Pelanggaran Siswa</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.1.3/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <style>
+        body { background-color: #f8f9fa; }
+        .sidebar { min-height: 100vh; background-color: #212529; color: #fff; }
+        .sidebar a { color: #cfd2d6; text-decoration: none; }
+        .sidebar a:hover, .sidebar .active { color: #fff; background-color: #007bff; border-radius: 4px; }
+    </style>
+</head>
+<body>
 
-<h2>Kelola Wali Kelas</h2>
-<p>Atur guru yang menjadi wali untuk setiap kelas aktif. Satu kelas memiliki satu wali kelas.</p>
+<div class="container-fluid">
+    <div class="row">
+        <!-- SIDEBAR -->
+        <nav class="col-md-3 col-lg-2 d-md-block sidebar p-3">
+            <h4 class="text-white mb-4">My Website</h4>
+            <ul class="nav flex-column">
+                <li class="nav-item mb-2"><a href="dashboard.php" class="nav-link p-2 <?= basename($_SERVER['PHP_SELF']) == 'dashboard.php' ? 'active' : ''; ?>"><i class="fas fa-home mr-2"></i> Dashboard</a></li>
+                <li class="nav-item mb-2"><a href="siswa.php" class="nav-link p-2 <?= basename($_SERVER['PHP_SELF']) == 'siswa.php' ? 'active' : ''; ?>"><i class="fas fa-user-graduate mr-2"></i> Data Siswa</a></li>
+                <li class="nav-item mb-2"><a href="guru.php" class="nav-link p-2 <?= basename($_SERVER['PHP_SELF']) == 'guru.php' ? 'active' : ''; ?>"><i class="fas fa-chalkboard-teacher mr-2"></i> Data Guru</a></li>
+                <li class="nav-item mb-2"><a href="kelas.php" class="nav-link p-2 <?= basename($_SERVER['PHP_SELF']) == 'kelas.php' ? 'active' : ''; ?>"><i class="fas fa-school mr-2"></i> Kelas</a></li>
+                <li class="nav-item mb-2"><a href="wali_kelas.php" class="nav-link p-2 <?= basename($_SERVER['PHP_SELF']) == 'wali_kelas.php' ? 'active' : ''; ?>"><i class="fas fa-user-tie mr-2"></i> Wali Kelas</a></li>
+                <li class="nav-item mb-2"><a href="tahun_ajaran.php" class="nav-link p-2 <?= basename($_SERVER['PHP_SELF']) == 'tahun_ajaran.php' ? 'active' : ''; ?>"><i class="fas fa-calendar-alt mr-2"></i> Tahun Ajaran</a></li>
+                <li class="nav-item mb-2"><a href="pelanggaran_kategori.php" class="nav-link p-2 <?= basename($_SERVER['PHP_SELF']) == 'pelanggaran_kategori.php' ? 'active' : ''; ?>"><i class="fas fa-tags mr-2"></i> Kategori Pelanggaran</a></li>
+                <li class="nav-item mb-2"><a href="pelanggaran.php" class="nav-link p-2 <?= basename($_SERVER['PHP_SELF']) == 'pelanggaran.php' ? 'active' : ''; ?>"><i class="fas fa-exclamation-triangle mr-2"></i> Data Pelanggaran</a></li>
+                <li class="nav-item mb-2"><a href="laporan.php" class="nav-link p-2 <?= basename($_SERVER['PHP_SELF']) == 'laporan.php' ? 'active' : ''; ?>"><i class="fas fa-file-alt mr-2"></i> Laporan & Rekap</a></li>
+                <li class="nav-item mb-2"><a href="about_me.php" class="nav-link p-2 <?= basename($_SERVER['PHP_SELF']) == 'about_me.php' ? 'active' : ''; ?>"><i class="fas fa-info-circle mr-2"></i> Tentang Saya</a></li>
+            </ul>
+            <hr class="bg-secondary">
+            <ul class="nav flex-column">
+                <li class="nav-item"><a href="logout.php" class="nav-link text-danger p-2"><i class="fas fa-sign-out-alt mr-2"></i> Logout</a></li>
+            </ul>
+        </nav>
 
-<?php if ($message): ?>
-    <p><b><?= htmlspecialchars($message); ?></b></p>
-    <hr>
-<?php endif; ?>
+        <!-- KONTEN -->
+        <main class="col-md-9 ml-sm-auto col-lg-10 px-4 py-4">
+            <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pb-2 mb-3 border-bottom">
+                <h1 class="h2">Penempatan Wali Kelas</h1>
+                <a href="tambah_wali_kelas.php" class="btn btn-primary btn-sm"><i class="fas fa-plus mr-1"></i> Tambah Wali Kelas</a>
+            </div>
+            <p class="text-muted">Kelola penugasan guru pendamping dan wali untuk setiap kelas.</p>
 
-<!-- Form Tambah / Edit Wali Kelas -->
-<h3><?= $edit_data ? 'Edit Wali Kelas' : 'Tambah Wali Kelas Baru'; ?></h3>
-<form method="POST" action="wali_kelas.php">
-    <input type="hidden" name="action" value="<?= $edit_data ? 'edit' : 'tambah'; ?>">
-    <?php if ($edit_data): ?>
-        <input type="hidden" name="id" value="<?= $edit_data['id']; ?>">
-    <?php endif; ?>
+            <?php if (!empty($message)): ?>
+                <div class="alert alert-info alert-dismissible fade show" role="alert">
+                    <?= htmlspecialchars($message); ?>
+                    <button type="button" class="close" data-dismiss="alert"><span aria-hidden="true">&times;</span></button>
+                </div>
+            <?php endif; ?>
 
-    <table border="0" cellpadding="5">
-        <tr>
-            <td><label for="kelas_id">Kelas</label></td>
-            <td>: 
-                <select id="kelas_id" name="kelas_id" required>
-                    <option value="">-- Pilih Kelas --</option>
-                    <?php if ($list_kelas): ?>
-                        <?php while ($k = $list_kelas->fetch_assoc()): ?>
-                            <option value="<?= $k['id']; ?>" <?= (isset($edit_data) && $edit_data['kelas_id'] == $k['id']) ? 'selected' : ''; ?>>
-                                <?= htmlspecialchars($k['nama']); ?>
-                            </option>
-                        <?php endwhile; ?>
-                    <?php endif; ?>
-                </select>
-            </td>
-        </tr>
-        <tr>
-            <td><label for="guru_id">Nama Wali Kelas (Guru)</label></td>
-            <td>: 
-                <select id="guru_id" name="guru_id" required>
-                    <option value="">-- Pilih Guru --</option>
-                    <?php if ($list_guru): ?>
-                        <?php while ($g = $list_guru->fetch_assoc()): ?>
-                            <option value="<?= $g['id']; ?>" <?= (isset($edit_data) && $edit_data['guru_id'] == $g['id']) ? 'selected' : ''; ?>>
-                                <?= htmlspecialchars($g['nama']); ?> (NIP: <?= htmlspecialchars($g['nip']); ?>)
-                            </option>
-                        <?php endwhile; ?>
-                    <?php endif; ?>
-                </select>
-            </td>
-        </tr>
-        <tr>
-            <td></td>
-            <td>
-                <button type="submit"><?= $edit_data ? 'Simpan Perubahan' : 'Simpan Wali Kelas'; ?></button>
-                <?php if ($edit_data): ?>
-                    <a href="wali_kelas.php">Batal Edit</a>
-                <?php endif; ?>
-            </td>
-        </tr>
-    </table>
-</form>
-
-<hr>
-
-<!-- Tabel Daftar Wali Kelas -->
-<h3>Daftar Wali Kelas</h3>
-<table border="1" cellpadding="8" cellspacing="0">
-    <thead>
-        <tr>
-            <th>No</th>
-            <th>Kelas</th>
-            <th>Nama Wali Kelas</th>
-            <th>NIP</th>
-            <th>Aksi</th>
-        </tr>
-    </thead>
-    <tbody>
-        <?php if ($result_wali && $result_wali->num_rows > 0): ?>
-            <?php $no = 1; while ($row = $result_wali->fetch_assoc()): ?>
-                <tr>
-                    <td><?= $no++; ?></td>
-                    <td><?= htmlspecialchars($row['nama_kelas']); ?></td>
-                    <td><?= htmlspecialchars($row['nama_guru']); ?></td>
-                    <td><?= htmlspecialchars($row['nip']); ?></td>
-                    <td>
-                        <a href="wali_kelas.php?edit=<?= $row['id']; ?>">Edit</a> | 
-                        <a href="wali_kelas.php?hapus=<?= $row['id']; ?>" onclick="return confirm('Yakin ingin menghapus wali kelas ini?')">Hapus</a>
-                    </td>
-                </tr>
-            <?php endwhile; ?>
-        <?php else: ?>
-            <tr>
-                <td colspan="5" align="center">Belum ada data wali kelas.</td>
-            </tr>
-        <?php endif; ?>
-    </tbody>
-</table>
-
-<?php include 'footer.php'; ?>
+            <div class="card shadow-sm">
+                <div class="card-header bg-white"><h5 class="mb-0">Daftar Wali Kelas</h5></div>
+                <div class="card-body p-0">
+                    <div class="table-responsive">
+                        <table class="table table-striped table-bordered mb-0">
+                            <thead class="thead-dark text-center">
+                                <tr>
+                                    <th style="width: 8%;">No</th>
+                                    <th style="width: 45%;">Nama Guru</th>
+                                    <th style="width: 30%;">Kelas Binaan</th>
+                                    <th style="width: 17%;">Aksi</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <?php if ($result_wali && $result_wali->num_rows > 0): ?>
+                                    <?php $no = 1; while ($row = $result_wali->fetch_assoc()): ?>
+                                        <tr>
+                                            <td class="text-center"><?= $no++; ?></td>
+                                            <td><?= htmlspecialchars($row['nama_guru'] ?? $row['guru'] ?? '-'); ?></td>
+                                            <td class="text-center"><strong><?= htmlspecialchars($row['nama_kelas'] ?? $row['kelas'] ?? '-'); ?></strong></td>
+                                            <td class="text-center">
+                                                <a href="wali_kelas.php?hapus=<?= $row['id']; ?>" class="btn btn-sm btn-danger" onclick="return confirm('Yakin hapus wali kelas ini?')"><i class="fas fa-trash"></i> Hapus</a>
+                                            </td>
+                                        </tr>
+                                    <?php endwhile; ?>
+                                <?php else: ?>
+                                    <tr><td colspan="4" class="text-center py-4 text-muted">Belum ada penempatan wali kelas.</td></tr>
+                                <?php endif; ?>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            <footer class="mt-5 py-3 text-center text-muted border-top small">&copy; 2026 - Sistem Informasi Pelanggaran Siswa</footer>
+        </main>
+    </div>
+</div>
+<script src="https://code.jquery.com/jquery-3.3.1.slim.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@4.1.3/dist/js/bootstrap.min.js"></script>
+</body>
+</html>

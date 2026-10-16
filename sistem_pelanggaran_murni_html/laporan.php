@@ -1,135 +1,85 @@
 <?php
-session_start();
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
+ini_set('display_errors', '1');
+error_reporting(E_ALL);
+
+require_once 'auth.php';
 require_once 'koneksi.php';
-
-// Pastikan user sudah login
-if (!isset($_SESSION['user_id'])) {
-    header("Location: login.php");
-    exit;
-}
-
-// Ambil Parameter Filter dari Method GET
-$tgl_mulai = $_GET['tgl_mulai'] ?? '';
-$tgl_selesai = $_GET['tgl_selesai'] ?? '';
-$kelas_id = intval($_GET['kelas_id'] ?? 0);
-
-// Base Query Laporan
-$sql = "SELECT r.id, r.tanggal, s.nisn, s.nama AS nama_siswa, k.nama AS nama_kelas, 
-               p.nama AS nama_pelanggaran, p.poin
-        FROM t_riwayat_pelanggaran r
-        JOIN t_siswa s ON r.siswa_id = s.id
-        LEFT JOIN t_kelas_siswa ks ON s.id = ks.siswa_id
-        LEFT JOIN t_kelas k ON ks.kelas_id = k.id
-        JOIN t_pelanggaran p ON r.pelanggaran_id = p.id
-        WHERE 1=1";
-
-// Terapkan Filter
-if (!empty($tgl_mulai)) {
-    $sql .= " AND r.tanggal >= '" . $koneksi->real_escape_string($tgl_mulai) . "'";
-}
-
-if (!empty($tgl_selesai)) {
-    $sql .= " AND r.tanggal <= '" . $koneksi->real_escape_string($tgl_selesai) . "'";
-}
-
-if ($kelas_id > 0) {
-    $sql .= " AND k.id = " . $kelas_id;
-}
-
-$sql .= " ORDER BY r.tanggal DESC, r.id DESC";
-$result = $koneksi->query($sql);
-
-// Fetch Master Kelas untuk Dropdown
-$list_kelas = $koneksi->query("SELECT id, nama FROM t_kelas ORDER BY nama ASC");
-
-// Query String untuk URL Export Excel
-$export_param = "tgl_mulai=" . urlencode($tgl_mulai) . "&tgl_selesai=" . urlencode($tgl_selesai) . "&kelas_id=" . $kelas_id;
-
-include 'header.php';
 ?>
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Laporan & Rekap - Sistem Pelanggaran Siswa</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.1.3/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <style>
+        body { background-color: #f8f9fa; }
+        .sidebar { min-height: 100vh; background-color: #212529; color: #fff; }
+        .sidebar a { color: #cfd2d6; text-decoration: none; }
+        .sidebar a:hover, .sidebar .active { color: #fff; background-color: #007bff; border-radius: 4px; }
+    </style>
+</head>
+<body>
 
-<h2>Laporan Pelanggaran Siswa</h2>
-<p>Saring, cetak, atau unduh rekapitulasi data pelanggaran siswa ke format Excel/CSV.</p>
+<div class="container-fluid">
+    <div class="row">
+        <!-- SIDEBAR -->
+        <nav class="col-md-3 col-lg-2 d-md-block sidebar p-3">
+            <h4 class="text-white mb-4">My Website</h4>
+            <ul class="nav flex-column">
+                <li class="nav-item mb-2"><a href="dashboard.php" class="nav-link p-2 <?= basename($_SERVER['PHP_SELF']) == 'dashboard.php' ? 'active' : ''; ?>"><i class="fas fa-home mr-2"></i> Dashboard</a></li>
+                <li class="nav-item mb-2"><a href="siswa.php" class="nav-link p-2 <?= basename($_SERVER['PHP_SELF']) == 'siswa.php' ? 'active' : ''; ?>"><i class="fas fa-user-graduate mr-2"></i> Data Siswa</a></li>
+                <li class="nav-item mb-2"><a href="guru.php" class="nav-link p-2 <?= basename($_SERVER['PHP_SELF']) == 'guru.php' ? 'active' : ''; ?>"><i class="fas fa-chalkboard-teacher mr-2"></i> Data Guru</a></li>
+                <li class="nav-item mb-2"><a href="kelas.php" class="nav-link p-2 <?= basename($_SERVER['PHP_SELF']) == 'kelas.php' ? 'active' : ''; ?>"><i class="fas fa-school mr-2"></i> Kelas</a></li>
+                <li class="nav-item mb-2"><a href="wali_kelas.php" class="nav-link p-2 <?= basename($_SERVER['PHP_SELF']) == 'wali_kelas.php' ? 'active' : ''; ?>"><i class="fas fa-user-tie mr-2"></i> Wali Kelas</a></li>
+                <li class="nav-item mb-2"><a href="tahun_ajaran.php" class="nav-link p-2 <?= basename($_SERVER['PHP_SELF']) == 'tahun_ajaran.php' ? 'active' : ''; ?>"><i class="fas fa-calendar-alt mr-2"></i> Tahun Ajaran</a></li>
+                <li class="nav-item mb-2"><a href="pelanggaran_kategori.php" class="nav-link p-2 <?= basename($_SERVER['PHP_SELF']) == 'pelanggaran_kategori.php' ? 'active' : ''; ?>"><i class="fas fa-tags mr-2"></i> Kategori Pelanggaran</a></li>
+                <li class="nav-item mb-2"><a href="pelanggaran.php" class="nav-link p-2 <?= basename($_SERVER['PHP_SELF']) == 'pelanggaran.php' ? 'active' : ''; ?>"><i class="fas fa-exclamation-triangle mr-2"></i> Data Pelanggaran</a></li>
+                <li class="nav-item mb-2"><a href="laporan.php" class="nav-link p-2 <?= basename($_SERVER['PHP_SELF']) == 'laporan.php' ? 'active' : ''; ?>"><i class="fas fa-file-alt mr-2"></i> Laporan & Rekap</a></li>
+                <li class="nav-item mb-2"><a href="about_me.php" class="nav-link p-2 <?= basename($_SERVER['PHP_SELF']) == 'about_me.php' ? 'active' : ''; ?>"><i class="fas fa-info-circle mr-2"></i> Tentang Saya</a></li>
+            </ul>
+            <hr class="bg-secondary">
+            <ul class="nav flex-column">
+                <li class="nav-item"><a href="logout.php" class="nav-link text-danger p-2"><i class="fas fa-sign-out-alt mr-2"></i> Logout</a></li>
+            </ul>
+        </nav>
 
-<!-- Form Filter -->
-<form method="GET" action="laporan.php">
-    <table border="0" cellpadding="5">
-        <tr>
-            <td><label for="tgl_mulai">Dari Tanggal</label></td>
-            <td>: <input type="date" id="tgl_mulai" name="tgl_mulai" value="<?= htmlspecialchars($tgl_mulai); ?>"></td>
-            
-            <td><label for="tgl_selesai">Sampai Tanggal</label></td>
-            <td>: <input type="date" id="tgl_selesai" name="tgl_selesai" value="<?= htmlspecialchars($tgl_selesai); ?>"></td>
-        </tr>
-        <tr>
-            <td><label for="kelas_id">Pilih Kelas</label></td>
-            <td>: 
-                <select id="kelas_id" name="kelas_id">
-                    <option value="0">-- Semua Kelas --</option>
-                    <?php if ($list_kelas): ?>
-                        <?php while ($k = $list_kelas->fetch_assoc()): ?>
-                            <option value="<?= $k['id']; ?>" <?= ($kelas_id == $k['id']) ? 'selected' : ''; ?>>
-                                <?= htmlspecialchars($k['nama']); ?>
-                            </option>
-                        <?php endwhile; ?>
-                    <?php endif; ?>
-                </select>
-            </td>
+        <!-- KONTEN -->
+        <main class="col-md-9 ml-sm-auto col-lg-10 px-4 py-4">
+            <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pb-2 mb-3 border-bottom">
+                <h1 class="h2">Pusat Laporan & Rekapitulasi</h1>
+            </div>
+            <p class="text-muted">Cetak dan periksa rekapitulasi data pelanggaran siswa berdasarkan kriteria tertentu.</p>
 
-            <td colspan="2">
-                <button type="submit">Filter Data</button>
-                <a href="laporan.php">Reset Filter</a> |
-                <button type="button" onclick="window.print()">Cetak Laporan</button> |
-                <a href="export_excel.php?<?= $export_param; ?>" target="_blank"><b>Unduh Excel / CSV</b></a>
-            </td>
-        </tr>
-    </table>
-</form>
-
-<hr>
-
-<!-- Tabel Hasil Laporan -->
-<h3>Hasil Laporan Pelanggaran</h3>
-<table border="1" cellpadding="8" cellspacing="0">
-    <thead>
-        <tr>
-            <th>No</th>
-            <th>Tanggal</th>
-            <th>NISN</th>
-            <th>Nama Siswa</th>
-            <th>Kelas</th>
-            <th>Nama Pelanggaran</th>
-            <th>Poin</th>
-        </tr>
-    </thead>
-    <tbody>
-        <?php 
-        $total_poin_semua = 0;
-        if ($result && $result->num_rows > 0): 
-            $no = 1;
-            while ($row = $result->fetch_assoc()): 
-                $total_poin_semua += $row['poin'];
-        ?>
-                <tr>
-                    <td><?= $no++; ?></td>
-                    <td><?= date('d-m-Y', strtotime($row['tanggal'])); ?></td>
-                    <td><?= htmlspecialchars($row['nisn']); ?></td>
-                    <td><?= htmlspecialchars($row['nama_siswa']); ?></td>
-                    <td><?= htmlspecialchars($row['nama_kelas'] ?? '-'); ?></td>
-                    <td><?= htmlspecialchars($row['nama_pelanggaran']); ?></td>
-                    <td><b><?= $row['poin']; ?></b></td>
-                </tr>
-            <?php endwhile; ?>
-            <tr>
-                <td colspan="6" align="right"><b>Total Akumulasi Poin Pelanggaran:</b></td>
-                <td><b><?= $total_poin_semua; ?> Poin</b></td>
-            </tr>
-        <?php else: ?>
-            <tr>
-                <td colspan="7" align="center">Tidak ada data pelanggaran yang sesuai filter.</td>
-            </tr>
-        <?php endif; ?>
-    </tbody>
-</table>
-
-<?php include 'footer.php'; ?>
+            <div class="row">
+                <div class="col-md-6 mb-4">
+                    <div class="card shadow-sm h-100">
+                        <div class="card-body">
+                            <h5 class="card-title"><i class="fas fa-print text-primary mr-2"></i> Rekap Per Kelas</h5>
+                            <p class="card-text text-muted">Cetak rekap data pelanggaran siswa berdasarkan pilihan kelas tertentu.</p>
+                            <button class="btn btn-outline-primary btn-sm" onclick="window.print()"><i class="fas fa-print mr-1"></i> Cetak Laporan</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="col-md-6 mb-4">
+                    <div class="card shadow-sm h-100">
+                        <div class="card-body">
+                            <h5 class="card-title"><i class="fas fa-file-pdf text-danger mr-2"></i> Rekap Total Pelanggaran</h5>
+                            <p class="card-text text-muted">Cetak seluruh riwayat pelanggaran kumulatif sekolah.</p>
+                            <button class="btn btn-outline-danger btn-sm" onclick="window.print()"><i class="fas fa-print mr-1"></i> Cetak Rekap Keseluruhan</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            <footer class="mt-5 py-3 text-center text-muted border-top small">&copy; 2026 - Sistem Informasi Pelanggaran Siswa</footer>
+        </main>
+    </div>
+</div>
+<script src="https://code.jquery.com/jquery-3.3.1.slim.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@4.1.3/dist/js/bootstrap.min.js"></script>
+</body>
+</html>
