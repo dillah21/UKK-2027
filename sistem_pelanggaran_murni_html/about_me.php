@@ -1,91 +1,61 @@
 <?php
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
-}
-ini_set('display_errors', '1');
-error_reporting(E_ALL);
+if (session_status() === PHP_SESSION_NONE) { session_start(); }
+ini_set('display_errors', '1'); error_reporting(E_ALL);
+require_once 'auth.php'; 
+require_once 'koneksi.php';
 
-require_once 'auth.php';
+// Panggil header terpusat anu sarua jeung menu séjén
+include 'header.php';
 ?>
-<!DOCTYPE html>
-<html lang="id">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Tentang Saya - Sistem Pelanggaran Siswa</title>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.1.3/dist/css/bootstrap.min.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
-    <style>
-        body { background-color: #f8f9fa; }
-        .sidebar { min-height: 100vh; background-color: #212529; color: #fff; }
-        .sidebar a { color: #cfd2d6; text-decoration: none; }
-        .sidebar a:hover, .sidebar .active { color: #fff; background-color: #007bff; border-radius: 4px; }
-    </style>
-</head>
-<body>
 
-<div class="container-fluid">
-    <div class="row">
-        <!-- SIDEBAR -->
-        <nav class="col-md-3 col-lg-2 d-md-block sidebar p-3">
-            <h4 class="text-white mb-4">My Website</h4>
-            <ul class="nav flex-column">
-                <li class="nav-item mb-2"><a href="dashboard.php" class="nav-link p-2 <?= basename($_SERVER['PHP_SELF']) == 'dashboard.php' ? 'active' : ''; ?>"><i class="fas fa-home mr-2"></i> Dashboard</a></li>
-                <li class="nav-item mb-2"><a href="siswa.php" class="nav-link p-2 <?= basename($_SERVER['PHP_SELF']) == 'siswa.php' ? 'active' : ''; ?>"><i class="fas fa-user-graduate mr-2"></i> Data Siswa</a></li>
-                <li class="nav-item mb-2"><a href="guru.php" class="nav-link p-2 <?= basename($_SERVER['PHP_SELF']) == 'guru.php' ? 'active' : ''; ?>"><i class="fas fa-chalkboard-teacher mr-2"></i> Data Guru</a></li>
-                <li class="nav-item mb-2"><a href="kelas.php" class="nav-link p-2 <?= basename($_SERVER['PHP_SELF']) == 'kelas.php' ? 'active' : ''; ?>"><i class="fas fa-school mr-2"></i> Kelas</a></li>
-                <li class="nav-item mb-2"><a href="wali_kelas.php" class="nav-link p-2 <?= basename($_SERVER['PHP_SELF']) == 'wali_kelas.php' ? 'active' : ''; ?>"><i class="fas fa-user-tie mr-2"></i> Wali Kelas</a></li>
-                <li class="nav-item mb-2"><a href="tahun_ajaran.php" class="nav-link p-2 <?= basename($_SERVER['PHP_SELF']) == 'tahun_ajaran.php' ? 'active' : ''; ?>"><i class="fas fa-calendar-alt mr-2"></i> Tahun Ajaran</a></li>
-                <li class="nav-item mb-2"><a href="pelanggaran_kategori.php" class="nav-link p-2 <?= basename($_SERVER['PHP_SELF']) == 'pelanggaran_kategori.php' ? 'active' : ''; ?>"><i class="fas fa-tags mr-2"></i> Kategori Pelanggaran</a></li>
-                <li class="nav-item mb-2"><a href="pelanggaran.php" class="nav-link p-2 <?= basename($_SERVER['PHP_SELF']) == 'pelanggaran.php' ? 'active' : ''; ?>"><i class="fas fa-exclamation-triangle mr-2"></i> Data Pelanggaran</a></li>
-                <li class="nav-item mb-2"><a href="laporan.php" class="nav-link p-2 <?= basename($_SERVER['PHP_SELF']) == 'laporan.php' ? 'active' : ''; ?>"><i class="fas fa-file-alt mr-2"></i> Laporan & Rekap</a></li>
-                <li class="nav-item mb-2"><a href="about_me.php" class="nav-link p-2 <?= basename($_SERVER['PHP_SELF']) == 'about_me.php' ? 'active' : ''; ?>"><i class="fas fa-info-circle mr-2"></i> Tentang Saya</a></li>
-            </ul>
-            <hr class="bg-secondary">
-            <ul class="nav flex-column">
-                <li class="nav-item"><a href="logout.php" class="nav-link text-danger p-2"><i class="fas fa-sign-out-alt mr-2"></i> Logout</a></li>
-            </ul>
-        </nav>
-
-        <!-- KONTEN -->
-        <main class="col-md-9 ml-sm-auto col-lg-10 px-4 py-4">
-            <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pb-2 mb-3 border-bottom">
-                <h1 class="h2">Tentang Pembuat Aplikasi</h1>
+            <div class="d-flex justify-content-between align-items-center pb-2 mb-4 border-bottom">
+                <h1 class="h2"><i class="fas fa-info-circle text-primary mr-2"></i> Tentang Pembuat Aplikasi</h1>
             </div>
 
-            <div class="row">
-                <div class="col-md-8">
-                    <div class="card shadow-sm">
-                        <div class="card-body">
-                            <h4 class="card-title text-primary font-weight-bold">Azril Akbar Fawji Abdillah</h4>
-                            <p class="text-muted mb-3">Siswa Rekayasa Perangkat Lunak (RPL)</p>
-                            <table class="table table-borderless">
-                                <tr>
-                                    <th style="width: 25%;">Kelas</th>
-                                    <td>: XII RPL 1</td>
-                                </tr>
-                                <tr>
-                                    <th>Jurusan</th>
-                                    <td>: Rekayasa Perangkat Lunak</td>
-                                </tr>
-                                <tr>
-                                    <th>Cita-cita</th>
-                                    <td>: Apa adanya</td>
-                                </tr>
-                                <tr>
-                                    <th>Project</th>
-                                    <td>: Sistem Informasi Pelanggaran Siswa (UKK 2027)</td>
-                                </tr>
+            <div class="row justify-content-center">
+                <div class="col-lg-8">
+                    <div class="card border-0 shadow-sm rounded-lg overflow-hidden">
+                        <!-- Header Profil dengan Gradasi & Foto -->
+                        <div class="card-header text-white text-center py-4" style="background: linear-gradient(135deg, #007bff, #6610f2);">
+                            <div class="mx-auto mb-3 rounded-circle shadow border border-white" style="width: 100px; height: 100px; overflow: hidden; background: #fff;">
+                                <img src="foto.jpg" alt="Azril Akbar Fawji Abdillah" style="width: 100%; height: 100%; object-fit: cover;" onerror="this.src='https://via.placeholder.com/100?text=Foto';">
+                            </div>
+                            <h3 class="mb-1 font-weight-bold">Azril Akbar Fawji Abdillah</h3>
+                            <p class="text-white-50 mb-0"><i class="fas fa-laptop-code mr-1"></i> Siswa Rekayasa Perangkat Lunak (RPL)</p>
+                        </div>
+                        
+                        <!-- Body Detail Informasi -->
+                        <div class="card-body p-4">
+                            <table class="table table-borderless mb-0">
+                                <tbody>
+                                    <tr>
+                                        <td style="width: 30%; font-weight: 600;"><i class="fas fa-school text-primary mr-2"></i> Kelas</td>
+                                        <td style="width: 5%;">:</td>
+                                        <td><span class="badge badge-primary px-3 py-2">XII RPL 1</span></td>
+                                    </tr>
+                                    <tr>
+                                        <td style="font-weight: 600;"><i class="fas fa-code text-success mr-2"></i> Jurusan</td>
+                                        <td>:</td>
+                                        <td>Rekayasa Perangkat Lunak</td>
+                                    </tr>
+                                    <tr>
+                                        <td style="font-weight: 600;"><i class="fas fa-heart text-danger mr-2"></i> Cita-cita</td>
+                                        <td>:</td>
+                                        <td>Apa adanya</td>
+                                    </tr>
+                                    <tr>
+                                        <td style="font-weight: 600;"><i class="fas fa-project-diagram text-warning mr-2"></i> Project UKK</td>
+                                        <td>:</td>
+                                        <td><strong>Sistem Informasi Pelanggaran Siswa (UKK 2027)</strong></td>
+                                    </tr>
+                                </tbody>
                             </table>
                         </div>
                     </div>
                 </div>
             </div>
-            <footer class="mt-5 py-3 text-center text-muted border-top small">&copy; 2026 - Sistem Informasi Pelanggaran Siswa</footer>
-        </main>
-    </div>
-</div>
-<script src="https://code.jquery.com/jquery-3.3.1.slim.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@4.1.3/dist/js/bootstrap.min.js"></script>
-</body>
-</html>
+
+<?php 
+// Panggil footer terpusat
+include 'footer.php'; 
+?>

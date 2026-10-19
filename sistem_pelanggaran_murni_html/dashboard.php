@@ -2,226 +2,271 @@
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
-ini_set('display_errors', '1');
-error_reporting(E_ALL);
-
 require_once 'auth.php';
 require_once 'koneksi.php';
 
-// Ambil statistik ringkasan untuk Admin
-$jumlah_siswa = 0;
-$jumlah_guru = 0;
-$jumlah_kelas = 0;
-$jumlah_pelanggaran = 0;
+// Panggil header dinamis
+include 'header.php';
 
-if ($res = $koneksi->query("SELECT COUNT(*) as total FROM t_siswa")) {
-    $jumlah_siswa = $res->fetch_assoc()['total'];
-}
-if ($res = $koneksi->query("SELECT COUNT(*) as total FROM t_guru")) {
-    $jumlah_guru = $res->fetch_assoc()['total'];
-}
-if ($res = $koneksi->query("SELECT COUNT(*) as total FROM t_kelas")) {
-    $jumlah_kelas = $res->fetch_assoc()['total'];
-}
-if ($res = $koneksi->query("SELECT COUNT(*) as total FROM t_riwayat_pelanggaran")) {
-    $jumlah_pelanggaran = $res->fetch_assoc()['total'];
-}
+// Hitung Statistik Card
+$q_siswa = mysqli_query($koneksi, "SELECT COUNT(*) as total FROM t_siswa");
+$total_siswa = ($q_siswa) ? (mysqli_fetch_assoc($q_siswa)['total'] ?? 0) : 0;
+
+$q_guru = mysqli_query($koneksi, "SELECT COUNT(*) as total FROM t_guru");
+$total_guru = ($q_guru) ? (mysqli_fetch_assoc($q_guru)['total'] ?? 0) : 0;
+
+$q_kat = mysqli_query($koneksi, "SELECT COUNT(*) as total FROM t_pelanggaran_kategori");
+$total_kategori = ($q_kat) ? (mysqli_fetch_assoc($q_kat)['total'] ?? 0) : 0;
+
+$q_kasus = mysqli_query($koneksi, "SELECT COUNT(*) as total FROM t_pelanggaran_siswa");
+$total_kasus = ($q_kasus) ? (mysqli_fetch_assoc($q_kasus)['total'] ?? 0) : 0;
+
+// Query Hitung Total Prestasi (Fallback jika tabel t_prestasi belum ada)
+$q_prestasi = mysqli_query($koneksi, "SELECT COUNT(*) as total FROM t_prestasi");
+$total_prestasi = ($q_prestasi) ? (mysqli_fetch_assoc($q_prestasi)['total'] ?? 0) : 0;
+
+// Query 5 Pelanggaran Terbaru
+$query_recent = mysqli_query($koneksi, "
+    SELECT 
+        p.*, 
+        s.nama_siswa, 
+        k.nama_kelas,
+        kat.nama_kategori
+    FROM t_pelanggaran_siswa p
+    LEFT JOIN t_siswa s ON p.id_siswa = s.id_siswa
+    LEFT JOIN t_kelas k ON s.id_kelas = k.id_kelas
+    LEFT JOIN t_pelanggaran_kategori kat ON p.id_kategori = kat.id_kategori
+    ORDER BY p.tanggal DESC, p.id_pelanggaran DESC
+    LIMIT 5
+");
+
+// Query 5 Prestasi Terbaru
+$query_recent_prestasi = mysqli_query($koneksi, "
+    SELECT 
+        pr.*, 
+        s.nama_siswa, 
+        k.nama_kelas 
+    FROM t_prestasi pr
+    LEFT JOIN t_siswa s ON pr.id_siswa = s.id_siswa
+    LEFT JOIN t_kelas k ON s.id_kelas = k.id_kelas
+    ORDER BY pr.tanggal DESC
+    LIMIT 5
+");
 ?>
-<!DOCTYPE html>
-<html lang="id">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Dashboard Admin - Sistem Pelanggaran Siswa</title>
-    <!-- Bootstrap CSS -->
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.1.3/dist/css/bootstrap.min.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
-    <style>
-        body { background-color: #f8f9fa; }
-        .sidebar { min-height: 100vh; background-color: #212529; color: #fff; }
-        .sidebar a { color: #cfd2d6; text-decoration: none; }
-        .sidebar a:hover, .sidebar .active { color: #fff; background-color: #007bff; border-radius: 4px; }
-        .stat-card { border: none; border-radius: 10px; transition: transform 0.2s; }
-        .stat-card:hover { transform: translateY(-3px); }
-    </style>
-</head>
-<body>
 
-<div class="container-fluid">
-    <div class="row">
-        <!-- SIDEBAR -->
-        <nav class="col-md-3 col-lg-2 d-md-block sidebar p-3">
-            <h4 class="text-white mb-4">My Website</h4>
-            <ul class="nav flex-column">
-                <li class="nav-item mb-2"><a href="dashboard.php" class="nav-link active p-2"><i class="fas fa-home mr-2"></i> Dashboard</a></li>
-                <li class="nav-item mb-2"><a href="siswa.php" class="nav-link p-2"><i class="fas fa-user-graduate mr-2"></i> Data Siswa</a></li>
-                <li class="nav-item mb-2"><a href="guru.php" class="nav-link p-2"><i class="fas fa-chalkboard-teacher mr-2"></i> Data Guru</a></li>
-                <li class="nav-item mb-2"><a href="kelas.php" class="nav-link p-2"><i class="fas fa-school mr-2"></i> Kelas</a></li>
-                <li class="nav-item mb-2"><a href="wali_kelas.php" class="nav-link p-2"><i class="fas fa-user-tie mr-2"></i> Wali Kelas</a></li>
-                <li class="nav-item mb-2"><a href="tahun_ajaran.php" class="nav-link p-2"><i class="fas fa-calendar-alt mr-2"></i> Tahun Ajaran</a></li>
-                <li class="nav-item mb-2"><a href="pelanggaran_kategori.php" class="nav-link p-2"><i class="fas fa-tags mr-2"></i> Kategori Pelanggaran</a></li>
-                <li class="nav-item mb-2"><a href="pelanggaran.php" class="nav-link p-2"><i class="fas fa-exclamation-triangle mr-2"></i> Data Pelanggaran</a></li>
-                <li class="nav-item mb-2"><a href="laporan.php" class="nav-link p-2"><i class="fas fa-file-alt mr-2"></i> Laporan & Rekap</a></li>
-                <li class="nav-item mb-2"><a href="about_me.php" class="nav-link p-2"><i class="fas fa-info-circle mr-2"></i> Tentang Saya</a></li>
-            </ul>
-            <hr class="bg-secondary">
-            <ul class="nav flex-column">
-                <li class="nav-item"><a href="logout.php" class="nav-link text-danger p-2"><i class="fas fa-sign-out-alt mr-2"></i> Logout</a></li>
-            </ul>
-        </nav>
+<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
+    <h1 class="h2">Selamat datang, <?= ucfirst(htmlspecialchars($_SESSION['role'] ?? 'Pengguna')); ?></h1>
+</div>
 
-        <!-- KONTEN UTAMA -->
-        <main class="col-md-9 ml-sm-auto col-lg-10 px-4 py-4">
-            <div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pb-2 mb-3 border-bottom">
-                <h1 class="h2">Dashboard Administrator</h1>
-                <span class="text-muted">Selamat datang, <strong><?= htmlspecialchars($_SESSION['username'] ?? 'Admin'); ?></strong></span>
-            </div>
-            <p class="text-muted">Panel kontrol utama untuk mengelola seluruh data master, akademik, pemantauan pelanggaran, dan laporan sistem.</p>
-
-            <!-- STATISTIK KARTU -->
-            <div class="row mb-4">
-                <div class="col-xl-3 col-md-6 mb-3">
-                    <div class="card stat-card bg-primary text-white shadow-sm">
-                        <div class="card-body">
-                            <div class="d-flex justify-content-between align-items-center">
-                                <div>
-                                    <h6 class="text-uppercase font-weight-bold mb-1">Total Siswa</h6>
-                                    <h2 class="mb-0 font-weight-bold"><?= $jumlah_siswa; ?></h2>
-                                </div>
-                                <i class="fas fa-user-graduate fa-2x text-white-50"></i>
-                            </div>
-                        </div>
-                        <div class="card-footer bg-transparent border-0 pt-0">
-                            <a href="siswa.php" class="text-white small">Kelola Siswa <i class="fas fa-arrow-right ml-1"></i></a>
-                        </div>
+<!-- STATISTIC CARDS -->
+<div class="row">
+    <div class="col-xl-3 col-md-6 mb-4">
+        <div class="card border-left-primary shadow h-100 py-2 border-0" style="border-left: 4px solid #4e73df !important;">
+            <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                    <div class="col mr-2">
+                        <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">TOTAL SISWA</div>
+                        <div class="h3 mb-0 font-weight-bold text-gray-800"><?= $total_siswa; ?></div>
                     </div>
-                </div>
-
-                <div class="col-xl-3 col-md-6 mb-3">
-                    <div class="card stat-card bg-success text-white shadow-sm">
-                        <div class="card-body">
-                            <div class="d-flex justify-content-between align-items-center">
-                                <div>
-                                    <h6 class="text-uppercase font-weight-bold mb-1">Total Guru</h6>
-                                    <h2 class="mb-0 font-weight-bold"><?= $jumlah_guru; ?></h2>
-                                </div>
-                                <i class="fas fa-chalkboard-teacher fa-2x text-white-50"></i>
-                            </div>
-                        </div>
-                        <div class="card-footer bg-transparent border-0 pt-0">
-                            <a href="guru.php" class="text-white small">Kelola Guru <i class="fas fa-arrow-right ml-1"></i></a>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="col-xl-3 col-md-6 mb-3">
-                    <div class="card stat-card bg-info text-white shadow-sm">
-                        <div class="card-body">
-                            <div class="d-flex justify-content-between align-items-center">
-                                <div>
-                                    <h6 class="text-uppercase font-weight-bold mb-1">Total Kelas</h6>
-                                    <h2 class="mb-0 font-weight-bold"><?= $jumlah_kelas; ?></h2>
-                                </div>
-                                <i class="fas fa-school fa-2x text-white-50"></i>
-                            </div>
-                        </div>
-                        <div class="card-footer bg-transparent border-0 pt-0">
-                            <a href="kelas.php" class="text-white small">Kelola Kelas <i class="fas fa-arrow-right ml-1"></i></a>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="col-xl-3 col-md-6 mb-3">
-                    <div class="card stat-card bg-danger text-white shadow-sm">
-                        <div class="card-body">
-                            <div class="d-flex justify-content-between align-items-center">
-                                <div>
-                                    <h6 class="text-uppercase font-weight-bold mb-1">Pelanggaran</h6>
-                                    <h2 class="mb-0 font-weight-bold"><?= $jumlah_pelanggaran; ?></h2>
-                                </div>
-                                <i class="fas fa-exclamation-triangle fa-2x text-white-50"></i>
-                            </div>
-                        </div>
-                        <div class="card-footer bg-transparent border-0 pt-0">
-                            <a href="pelanggaran.php" class="text-white small">Pantau Pelanggaran <i class="fas fa-arrow-right ml-1"></i></a>
-                        </div>
+                    <div class="col-auto">
+                        <i class="fas fa-user-graduate fa-2x text-primary"></i>
                     </div>
                 </div>
             </div>
+        </div>
+    </div>
 
-            <!-- PANEL AKSES CEPAT MENU UTAMA -->
-            <div class="row">
-                <!-- Manajemen Akademik & Master -->
-                <div class="col-md-6 mb-4">
-                    <div class="card shadow-sm h-100">
-                        <div class="card-header bg-white font-weight-bold">
-                            <i class="fas fa-database text-primary mr-2"></i> Pengelolaan Data Master & Akademik
-                        </div>
-                        <div class="card-body">
-                            <p class="text-muted small">Atur struktur dasar sekolah, penempatan kelas, tahun ajaran aktif, dan wali kelas.</p>
-                            <div class="list-group">
-                                <a href="tahun_ajaran.php" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
-                                    <span><i class="fas fa-calendar-alt text-secondary mr-2"></i> Kelola Tahun Ajaran & Semester</span>
-                                    <i class="fas fa-chevron-right small text-muted"></i>
-                                </a>
-                                <a href="kelas.php" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
-                                    <span><i class="fas fa-school text-secondary mr-2"></i> Pengaturan Data Kelas</span>
-                                    <i class="fas fa-chevron-right small text-muted"></i>
-                                </a>
-                                <a href="wali_kelas.php" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
-                                    <span><i class="fas fa-user-tie text-secondary mr-2"></i> Penempatan Wali Kelas</span>
-                                    <i class="fas fa-chevron-right small text-muted"></i>
-                                </a>
-                                <a href="siswa.php" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
-                                    <span><i class="fas fa-user-graduate text-secondary mr-2"></i> Penempatan & Data Siswa</span>
-                                    <i class="fas fa-chevron-right small text-muted"></i>
-                                </a>
-                            </div>
-                        </div>
+    <div class="col-xl-3 col-md-6 mb-4">
+        <div class="card border-left-success shadow h-100 py-2 border-0" style="border-left: 4px solid #1cc88a !important;">
+            <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                    <div class="col mr-2">
+                        <div class="text-xs font-weight-bold text-success text-uppercase mb-1">TOTAL PRESTASI SISWA</div>
+                        <div class="h3 mb-0 font-weight-bold text-gray-800"><?= $total_prestasi; ?></div>
                     </div>
-                </div>
-
-                <!-- Pemantauan Pelanggaran & Laporan -->
-                <div class="col-md-6 mb-4">
-                    <div class="card shadow-sm h-100">
-                        <div class="card-header bg-white font-weight-bold">
-                            <i class="fas fa-chart-line text-danger mr-2"></i> Pemantauan Pelanggaran & Laporan
-                        </div>
-                        <div class="card-body">
-                            <p class="text-muted small">Awasi kedisiplinan siswa, catat poin sanksi, dan akses seluruh laporan rekapitulasi.</p>
-                            <div class="list-group">
-                                <a href="pelanggaran_kategori.php" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
-                                    <span><i class="fas fa-tags text-secondary mr-2"></i> Kategori & Poin Pelanggaran</span>
-                                    <i class="fas fa-chevron-right small text-muted"></i>
-                                </a>
-                                <a href="pelanggaran.php" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
-                                    <span><i class="fas fa-exclamation-triangle text-secondary mr-2"></i> Data & Riwayat Pelanggaran Siswa</span>
-                                    <i class="fas fa-chevron-right small text-muted"></i>
-                                </a>
-                                <a href="laporan.php" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
-                                    <span><i class="fas fa-file-alt text-secondary mr-2"></i> Cetak & Akses Seluruh Laporan</span>
-                                    <i class="fas fa-chevron-right small text-muted"></i>
-                                </a>
-                                <a href="guru.php" class="list-group-item list-group-item-action d-flex justify-content-between align-items-center">
-                                    <span><i class="fas fa-chalkboard-teacher text-secondary mr-2"></i> Data Guru & Hak Akses Pelapor</span>
-                                    <i class="fas fa-chevron-right small text-muted"></i>
-                                </a>
-                            </div>
-                        </div>
+                    <div class="col-auto">
+                        <i class="fas fa-trophy fa-2x text-success"></i>
                     </div>
                 </div>
             </div>
+        </div>
+    </div>
 
-            <!-- Footer -->
-            <footer class="mt-5 py-3 text-center text-muted border-top small">
-                &copy; 2026 - Sistem Informasi Pelanggaran Siswa
-            </footer>
-        </main>
+    <div class="col-xl-3 col-md-6 mb-4">
+        <div class="card border-left-info shadow h-100 py-2 border-0" style="border-left: 4px solid #36b9cc !important;">
+            <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                    <div class="col mr-2">
+                        <div class="text-xs font-weight-bold text-info text-uppercase mb-1">KATEGORI PELANGGARAN</div>
+                        <div class="h3 mb-0 font-weight-bold text-gray-800"><?= $total_kategori; ?></div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="fas fa-tags fa-2x text-info"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="col-xl-3 col-md-6 mb-4">
+        <div class="card border-left-danger shadow h-100 py-2 border-0" style="border-left: 4px solid #e74a3b !important;">
+            <div class="card-body">
+                <div class="row no-gutters align-items-center">
+                    <div class="col mr-2">
+                        <div class="text-xs font-weight-bold text-danger text-uppercase mb-1">TOTAL KASUS PELANGGARAN</div>
+                        <div class="h3 mb-0 font-weight-bold text-gray-800"><?= $total_kasus; ?></div>
+                    </div>
+                    <div class="col-auto">
+                        <i class="fas fa-exclamation-triangle fa-2x text-danger"></i>
+                    </div>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
 
-<script src="https://code.jquery.com/jquery-3.3.1.slim.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/popper.js@1.14.3/dist/umd/popper.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@4.1.3/dist/js/bootstrap.min.js"></script>
-</body>
-</html>
+<!-- KARTU SAMBUTAN & QUICK ACTION -->
+<div class="card shadow-sm border-0 mb-4">
+    <div class="card-body">
+        <h5 class="card-title text-primary font-weight-bold">Halo, <?= htmlspecialchars($_SESSION['nama'] ?? $_SESSION['username'] ?? 'Pengguna'); ?>! 👋</h5>
+        <p class="card-text text-muted mb-3">
+            Anda berhasil masuk sebagai level <strong><?= ucfirst(htmlspecialchars($_SESSION['role'] ?? 'User')); ?></strong>. Silakan gunakan navigasi menu di sebelah kiri atau pintasan di bawah ini untuk mengelola data operasional sistem.
+        </p>
+        
+        <!-- TOMBOL PINTASAN CEPAAT (QUICK ACTION) -->
+        <div class="pt-2 border-top">
+            <span class="text-xs font-weight-bold text-secondary d-block mb-2"><i class="fas fa-bolt text-warning mr-1"></i> Pintasan Cepat (Quick Action):</span>
+            <div class="btn-group flex-wrap gap-2">
+                <a href="laporan.php" class="btn btn-outline-primary btn-sm mr-2 mb-2">
+                    <i class="fas fa-file-alt mr-1"></i> Lihat Rekap Laporan
+                </a>
+                <a href="prestasi.php" class="btn btn-outline-success btn-sm mr-2 mb-2">
+                    <i class="fas fa-trophy mr-1"></i> Data Prestasi Siswa
+                </a>
+                <a href="pelanggaran_kategori.php" class="btn btn-outline-info btn-sm mr-2 mb-2">
+                    <i class="fas fa-tags mr-1"></i> Data Kategori Pelanggaran
+                </a>
+                <?php if (strtolower($_SESSION['role'] ?? '') === 'admin'): ?>
+                    <a href="pelanggaran_kategori_tambah.php" class="btn btn-outline-success btn-sm mr-2 mb-2">
+                        <i class="fas fa-plus-circle mr-1"></i> Tambah Kategori
+                    </a>
+                <?php endif; ?>
+                <a href="profile.php" class="btn btn-outline-secondary btn-sm mb-2">
+                    <i class="fas fa-user-cog mr-1"></i> Pengaturan Profil
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div class="row">
+    <!-- TABEL RINGKASAN PRESTASI TERBARU -->
+    <div class="col-lg-6 mb-4">
+        <div class="card shadow-sm border-0 h-100">
+            <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+                <h6 class="m-0 font-weight-bold text-success">
+                    <i class="fas fa-trophy mr-2"></i> 5 Catatan Prestasi Terbaru
+                </h6>
+                <a href="prestasi.php" class="btn btn-sm btn-success">Lihat Semua <i class="fas fa-arrow-right ml-1"></i></a>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover table-striped align-middle mb-0">
+                        <thead class="thead-light">
+                            <tr>
+                                <th width="40" class="text-center">No</th>
+                                <th>Nama Siswa & Kelas</th>
+                                <th>Nama Prestasi / Lomba</th>
+                                <th width="80" class="text-center">Poin</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php 
+                            $no_p = 1;
+                            if ($query_recent_prestasi && mysqli_num_rows($query_recent_prestasi) > 0):
+                                while ($row_p = mysqli_fetch_assoc($query_recent_prestasi)):
+                                    $nama_siswa_p = $row_p['nama_siswa'] ?? ('Siswa ID ' . ($row_p['id_siswa'] ?? ''));
+                                    $kelas_p = $row_p['nama_kelas'] ?? '-';
+                                    $judul_prestasi = $row_p['nama_prestasi'] ?? $row_p['juduL'] ?? $row_p['keterangan'] ?? 'Juara Lomba';
+                                    $poin_p = $row_p['poin'] ?? $row_p['poin_prestasi'] ?? 10;
+                            ?>
+                                <tr>
+                                    <td class="text-center"><?= $no_p++; ?></td>
+                                    <td>
+                                        <strong><?= htmlspecialchars($nama_siswa_p); ?></strong><br>
+                                        <small class="text-muted">Kelas: <?= htmlspecialchars($kelas_p); ?></small>
+                                    </td>
+                                    <td><span class="badge badge-success p-2"><?= htmlspecialchars($judul_prestasi); ?></span></td>
+                                    <td class="text-center font-weight-bold text-success">+<?= htmlspecialchars($poin_p); ?></td>
+                                </tr>
+                            <?php 
+                                endwhile;
+                            else:
+                            ?>
+                                <tr>
+                                    <td colspan="4" class="text-center text-muted py-4">Belum ada catatan prestasi siswa.</td>
+                                </tr>
+                            <?php endif; ?>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- TABEL RINGKASAN PELANGGARAN TERBARU -->
+    <div class="col-lg-6 mb-4">
+        <div class="card shadow-sm border-0 h-100">
+            <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
+                <h6 class="m-0 font-weight-bold text-danger">
+                    <i class="fas fa-history mr-2"></i> 5 Catatan Pelanggaran Terbaru
+                </h6>
+                <a href="laporan.php" class="btn btn-sm btn-danger">Lihat Semua <i class="fas fa-arrow-right ml-1"></i></a>
+            </div>
+            <div class="card-body p-0">
+                <div class="table-responsive">
+                    <table class="table table-hover table-striped align-middle mb-0">
+                        <thead class="thead-light">
+                            <tr>
+                                <th width="40" class="text-center">No</th>
+                                <th>Nama Siswa & Kelas</th>
+                                <th>Kategori</th>
+                                <th width="80" class="text-center">Poin</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php 
+                            $no = 1;
+                            if ($query_recent && mysqli_num_rows($query_recent) > 0):
+                                while ($row = mysqli_fetch_assoc($query_recent)):
+                                    $nama_siswa = $row['nama_siswa'] ?? ('Siswa ID ' . ($row['id_siswa'] ?? ''));
+                                    $kelas = $row['nama_kelas'] ?? '-';
+                                    $kategori = $row['nama_kategori'] ?? $row['kategori'] ?? 'Pelanggaran';
+                                    $poin = $row['poin'] ?? $row['poin_pelanggaran'] ?? 10;
+                            ?>
+                                <tr>
+                                    <td class="text-center"><?= $no++; ?></td>
+                                    <td>
+                                        <strong><?= htmlspecialchars($nama_siswa); ?></strong><br>
+                                        <small class="text-muted">Kelas: <?= htmlspecialchars($kelas); ?></small>
+                                    </td>
+                                    <td><span class="badge badge-warning p-2"><?= htmlspecialchars($kategori); ?></span></td>
+                                    <td class="text-center font-weight-bold text-danger">+<?= htmlspecialchars($poin); ?></td>
+                                </tr>
+                            <?php 
+                                endwhile;
+                            else:
+                            ?>
+                                <tr>
+                                    <td colspan="4" class="text-center text-muted py-4">Belum ada catatan pelanggaran terbaru.</td>
+                                </tr>
+                            <?php endif; ?>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<?php include 'footer.php'; ?>

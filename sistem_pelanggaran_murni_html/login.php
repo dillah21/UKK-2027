@@ -1,112 +1,113 @@
 <?php
-session_start();
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 require_once 'koneksi.php';
 
-$error = '';
+if (isset($_SESSION['user_id'])) {
+    header("Location: dashboard.php");
+    exit();
+}
+
+$pesan_error = "";
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $email = trim($_POST['email'] ?? '');
     $password = trim($_POST['password'] ?? '');
 
     if (!empty($email) && !empty($password)) {
-        // Query ambil data user berdasarkan email
         $stmt = $koneksi->prepare("SELECT * FROM t_users WHERE email = ?");
         $stmt->bind_param("s", $email);
         $stmt->execute();
         $result = $stmt->get_result();
 
-        if ($result && $result->num_rows > 0) {
+        if ($result->num_rows === 1) {
             $user = $result->fetch_assoc();
             $db_password = trim($user['password']);
 
-            // Pengecekan password: teks biasa ATAU hash bcrypt
-            $is_valid = ($password === $db_password) || password_verify($password, $db_password);
+            // Fleksibel: Cocokkan plain text ATAU password_verify
+            $is_match = ($password === $db_password) || password_verify($password, $db_password);
 
-            if ($is_valid) {
-                // Simpan data login ke session
+            if ($is_match) {
                 $_SESSION['user_id'] = $user['id'];
-                $_SESSION['nama'] = $user['name'] ?? $user['email'];
-                $_SESSION['role'] = $user['role'];
+                $_SESSION['nama']    = $user['name'] ?? ($user['nama'] ?? 'User');
+                $_SESSION['email']   = $user['email'];
+                $_SESSION['role']    = strtolower(trim($user['role'] ?? 'admin'));
 
-                // Langsung lempar ke dashboard
                 header("Location: dashboard.php");
-                exit;
+                exit();
             } else {
-                $error = "Password yang Anda masukkan salah!";
+                $pesan_error = "Password yang Anda masukkan salah!";
             }
         } else {
-            $error = "Email '" . htmlspecialchars($email) . "' tidak ditemukan!";
+            $pesan_error = "Email/Username tidak terdaftar!";
         }
         $stmt->close();
     } else {
-        $error = "Silakan isi Email dan Password!";
+        $pesan_error = "Harap isi Email dan Password secara lengkap!";
     }
 }
 ?>
 <!DOCTYPE html>
 <html lang="id">
 <head>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.1.3/dist/css/bootstrap.min.css" integrity="sha384-MCw98/SFnGE8fJT3GXwEOngsV7Zt27NXFoaoApmYm81iuXoPkFOJwJ8ERdknLPMO" crossorigin="anonymous">
     <meta charset="UTF-8">
-    <title>Login - Sistem Pelanggaran Siswa</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login - Sistem Informasi Pelanggaran Siswa</title>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@4.1.3/dist/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
+    <style>
+        body { background: linear-gradient(135deg, #1e3c72 0%, #2a5298 100%); min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+        .card-login { border: none; border-radius: 12px; box-shadow: 0 10px 25px rgba(0,0,0,0.2); width: 100%; max-width: 420px; }
+        .card-login .card-header { background-color: transparent; border-bottom: none; padding-top: 30px; padding-bottom: 0; }
+    </style>
 </head>
 <body>
-    <script src="https://code.jquery.com/jquery-3.3.1.slim.min.js" integrity="sha384-q8i/X+965DzO0rT7abK41JStQIAqVgRVzpbzo5smXKp4YfRvH+8abtTE1Pi6jizo" crossorigin="anonymous"></script>
-<script src="https://cdn.jsdelivr.net/npm/popper.js@1.14.3/dist/umd/popper.min.js" integrity="sha384-ZMP7rVo3mIykV+2+9J3UJ46jBk0WLaUAdn689aCwoqbBJiSnjAK/l8WvCWPIPm49" crossorigin="anonymous"></script>
-<script src="https://cdn.jsdelivr.net/npm/bootstrap@4.1.3/dist/js/bootstrap.min.js" integrity="sha384-ChfqqxuZUCnJSK3+MXmPNIyE6ZbWh2IMqE241rYiqJxyMiZ6OW/JmZQ5stwEULTy" crossorigin="anonymous"></script>
+<div class="container p-3">
+    <div class="row justify-content-center">
+        <div class="card card-login bg-white">
+            <div class="card-header text-center">
+                <div class="mb-3 text-primary"><i class="fas fa-user-shield fa-3x"></i></div>
+                <h4 class="font-weight-bold text-dark">Sistem Pelanggaran</h4>
+                <p class="text-muted small">Silakan login menggunakan akun Anda</p>
+            </div>
+            <div class="card-body p-4">
+                <?php if (!empty($pesan_error)): ?>
+                    <div class="alert alert-danger alert-dismissible fade show" role="alert">
+                        <i class="fas fa-exclamation-triangle mr-2"></i> <?= htmlspecialchars($pesan_error); ?>
+                        <button type="button" class="close" data-dismiss="alert"><span>&times;</span></button>
+                    </div>
+                <?php endif; ?>
 
-<center>
-    <br><br><br>
-    <h2>Login Sistem Pelanggaran Siswa</h2>
-    <p>Silakan masuk untuk mengakses panel sistem</p>
-    <br>
+                <form method="POST" action="login.php">
+                    <div class="form-group mb-3">
+                        <label class="small font-weight-bold">Email / Username</label>
+                        <div class="input-group">
+                            <div class="input-group-prepend"><span class="input-group-text"><i class="fas fa-envelope"></i></span></div>
+                            <input type="email" name="email" class="form-control" placeholder="contoh@gmail.com" required autofocus>
+                        </div>
+                    </div>
 
-    <?php if ($error): ?>
-        <p style="color: red;"><b><?= htmlspecialchars($error); ?></b></p>
-        <br>
-    <?php endif; ?>
+                    <div class="form-group mb-4">
+                        <label class="small font-weight-bold">Password</label>
+                        <div class="input-group">
+                            <div class="input-group-prepend"><span class="input-group-text"><i class="fas fa-lock"></i></span></div>
+                            <input type="password" name="password" class="form-control" placeholder="Masukkan password" required>
+                        </div>
+                    </div>
 
-
-    <form method="POST" action="login.php">
-  <div class="form-group">
-    <label for="exampleInputEmail1">Email address</label>
-    <input type="email" id="email" name="email" class="form-control" placeholder="contoh: user1@sekolah.sch.id" required autofocus size="28">
-  </div>
-  <div class="form-group">
-    <label for="exampleInputPassword1">Password</label>
-    <input type="password" id="password" name="password" class="form-control" placeholder="Masukkan password" required size="28">
-  </div>
-
-  <button type="submit" class="btn btn-primary">Login</button>
-</form>
-
-    <!-- <form method="POST" action="login.php">
-        <table border="0" cellpadding="6" cellspacing="0" align="center">
-            <tr>
-                <td align="right"><label for="email"><b>Email Account</b></label></td>
-                <td>:</td>
-                <td><input type="email" id="email" name="email" placeholder="contoh: user1@sekolah.sch.id" required autofocus size="28"></td>
-            </tr>
-            <tr>
-                <td align="right"><label for="password"><b>Kata Sandi</b></label></td>
-                <td>:</td>
-                <td><input type="password" id="password" name="password" placeholder="Masukkan password" required size="28"></td>
-            </tr>
-            <tr>
-                <td></td>
-                <td></td>
-                <td align="left">
-                    <br>
-                    <button type="submit" style="padding: 6px 18px; cursor: pointer;"><b>Masuk</b></button>
-                </td>
-            </tr>
-        </table>
-    </form> -->
-
-    <br><br><br>
-    <hr width="50%">
-    <p>&copy; 2026 UKK - Sistem Informasi Pelanggaran Siswa | Dikembangkan oleh: <b>AZRIL AKBAR FAWZI ABDILLAH</b></p>
-</center>
-
+                    <button type="submit" class="btn btn-primary btn-block py-2 font-weight-bold">
+                        <i class="fas fa-sign-in-alt mr-2"></i> Masuk Akun
+                    </button>
+                </form>
+            </div>
+            <div class="card-footer bg-light text-center py-3 border-0 rounded-bottom">
+                <small class="text-muted">&copy; 2026 UKK RPL - All Rights Reserved</small>
+            </div>
+        </div>
+    </div>
+</div>
+<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@4.1.3/dist/js/bootstrap.min.js"></script>
 </body>
 </html>
