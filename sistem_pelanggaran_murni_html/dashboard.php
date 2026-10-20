@@ -1,272 +1,363 @@
+
 <?php
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
 }
+
 require_once 'auth.php';
 require_once 'koneksi.php';
 
-// Panggil header dinamis
-include 'header.php';
+/*
+|--------------------------------------------------------------------------
+| Helper database
+|--------------------------------------------------------------------------
+*/
 
-// Hitung Statistik Card
-$q_siswa = mysqli_query($koneksi, "SELECT COUNT(*) as total FROM t_siswa");
-$total_siswa = ($q_siswa) ? (mysqli_fetch_assoc($q_siswa)['total'] ?? 0) : 0;
+function dashboard_count($koneksi, $table) {
+    $allowed = [
+        't_siswa',
+        't_guru',
+        't_pelanggaran_kategori',
+        't_pelanggaran_siswa',
+        't_prestasi'
+    ];
 
-$q_guru = mysqli_query($koneksi, "SELECT COUNT(*) as total FROM t_guru");
-$total_guru = ($q_guru) ? (mysqli_fetch_assoc($q_guru)['total'] ?? 0) : 0;
+    if (!in_array($table, $allowed, true)) {
+        return 0;
+    }
 
-$q_kat = mysqli_query($koneksi, "SELECT COUNT(*) as total FROM t_pelanggaran_kategori");
-$total_kategori = ($q_kat) ? (mysqli_fetch_assoc($q_kat)['total'] ?? 0) : 0;
+    try {
+        $result = $koneksi->query(
+            "SELECT COUNT(*) AS total FROM `$table`"
+        );
 
-$q_kasus = mysqli_query($koneksi, "SELECT COUNT(*) as total FROM t_pelanggaran_siswa");
-$total_kasus = ($q_kasus) ? (mysqli_fetch_assoc($q_kasus)['total'] ?? 0) : 0;
+        return (int) $result->fetch_assoc()['total'];
+    } catch (Throwable $e) {
+        error_log('Dashboard count: ' . $e->getMessage());
+        return 0;
+    }
+}
 
-// Query Hitung Total Prestasi (Fallback jika tabel t_prestasi belum ada)
-$q_prestasi = mysqli_query($koneksi, "SELECT COUNT(*) as total FROM t_prestasi");
-$total_prestasi = ($q_prestasi) ? (mysqli_fetch_assoc($q_prestasi)['total'] ?? 0) : 0;
+function dashboard_rows($koneksi, $sql) {
+    try {
+        $result = $koneksi->query($sql);
+        return $result->fetch_all(MYSQLI_ASSOC);
+    } catch (Throwable $e) {
+        error_log('Dashboard query: ' . $e->getMessage());
+        return [];
+    }
+}
 
-// Query 5 Pelanggaran Terbaru
-$query_recent = mysqli_query($koneksi, "
-    SELECT 
-        p.*, 
-        s.nama_siswa, 
+function h($value) {
+    return htmlspecialchars(
+        (string) ($value ?? '-'),
+        ENT_QUOTES,
+        'UTF-8'
+    );
+}
+
+/*
+|--------------------------------------------------------------------------
+| Statistik
+|--------------------------------------------------------------------------
+*/
+
+$total_siswa = dashboard_count($koneksi, 't_siswa');
+$total_guru = dashboard_count($koneksi, 't_guru');
+$total_kategori = dashboard_count(
+    $koneksi,
+    't_pelanggaran_kategori'
+);
+$total_kasus = dashboard_count(
+    $koneksi,
+    't_pelanggaran_siswa'
+);
+$total_prestasi = dashboard_count($koneksi, 't_prestasi');
+
+/*
+|--------------------------------------------------------------------------
+| Data terbaru
+|--------------------------------------------------------------------------
+| Query menggunakan nama kolom yang dipakai dashboard asli.
+| Jika skema berbeda, periksa log PHP dan sesuaikan nama kolom.
+|--------------------------------------------------------------------------
+*/
+
+$pelanggaran = dashboard_rows($koneksi, "
+    SELECT
+        p.id_pelanggaran,
+        p.tanggal,
+        p.poin,
+        s.nama_siswa,
         k.nama_kelas,
         kat.nama_kategori
     FROM t_pelanggaran_siswa p
-    LEFT JOIN t_siswa s ON p.id_siswa = s.id_siswa
-    LEFT JOIN t_kelas k ON s.id_kelas = k.id_kelas
-    LEFT JOIN t_pelanggaran_kategori kat ON p.id_kategori = kat.id_kategori
+    LEFT JOIN t_siswa s
+        ON p.id_siswa = s.id_siswa
+    LEFT JOIN t_kelas k
+        ON s.id_kelas = k.id_kelas
+    LEFT JOIN t_pelanggaran_kategori kat
+        ON p.id_kategori = kat.id_kategori
     ORDER BY p.tanggal DESC, p.id_pelanggaran DESC
     LIMIT 5
 ");
 
-// Query 5 Prestasi Terbaru
-$query_recent_prestasi = mysqli_query($koneksi, "
-    SELECT 
-        pr.*, 
-        s.nama_siswa, 
-        k.nama_kelas 
+$prestasi = dashboard_rows($koneksi, "
+    SELECT
+        pr.id_prestasi,
+        pr.tanggal,
+        pr.nama_prestasi,
+        pr.poin,
+        s.nama_siswa,
+        k.nama_kelas
     FROM t_prestasi pr
-    LEFT JOIN t_siswa s ON pr.id_siswa = s.id_siswa
-    LEFT JOIN t_kelas k ON s.id_kelas = k.id_kelas
+    LEFT JOIN t_siswa s
+        ON pr.id_siswa = s.id_siswa
+    LEFT JOIN t_kelas k
+        ON s.id_kelas = k.id_kelas
     ORDER BY pr.tanggal DESC
     LIMIT 5
 ");
+
+include 'header.php';
 ?>
 
-<div class="d-flex justify-content-between flex-wrap flex-md-nowrap align-items-center pt-3 pb-2 mb-3 border-bottom">
-    <h1 class="h2">Selamat datang, <?= ucfirst(htmlspecialchars($_SESSION['role'] ?? 'Pengguna')); ?></h1>
-</div>
+<div class="container-fluid py-3">
 
-<!-- STATISTIC CARDS -->
-<div class="row">
-    <div class="col-xl-3 col-md-6 mb-4">
-        <div class="card border-left-primary shadow h-100 py-2 border-0" style="border-left: 4px solid #4e73df !important;">
-            <div class="card-body">
-                <div class="row no-gutters align-items-center">
-                    <div class="col mr-2">
-                        <div class="text-xs font-weight-bold text-primary text-uppercase mb-1">TOTAL SISWA</div>
-                        <div class="h3 mb-0 font-weight-bold text-gray-800"><?= $total_siswa; ?></div>
-                    </div>
-                    <div class="col-auto">
-                        <i class="fas fa-user-graduate fa-2x text-primary"></i>
+    <div class="d-flex flex-wrap justify-content-between
+                align-items-center mb-4">
+        <div>
+            <h2 class="font-weight-bold">Dashboard</h2>
+            <p class="text-muted mb-0">
+                Sistem Informasi Pelanggaran Siswa
+            </p>
+        </div>
+
+        <span class="badge badge-primary p-2">
+            <?= h(ucfirst($_SESSION['role'] ?? 'Pengguna')) ?>
+        </span>
+    </div>
+
+    <!-- STATISTIK -->
+    <div class="row">
+
+        <?php
+        $cards = [
+            [
+                'label' => 'Total Siswa',
+                'value' => $total_siswa,
+                'color' => 'primary',
+                'icon' => 'fa-user-graduate'
+            ],
+            [
+                'label' => 'Total Guru',
+                'value' => $total_guru,
+                'color' => 'success',
+                'icon' => 'fa-chalkboard-teacher'
+            ],
+            [
+                'label' => 'Kategori Pelanggaran',
+                'value' => $total_kategori,
+                'color' => 'info',
+                'icon' => 'fa-tags'
+            ],
+            [
+                'label' => 'Total Kasus',
+                'value' => $total_kasus,
+                'color' => 'danger',
+                'icon' => 'fa-exclamation-triangle'
+            ],
+            [
+                'label' => 'Total Prestasi',
+                'value' => $total_prestasi,
+                'color' => 'warning',
+                'icon' => 'fa-trophy'
+            ]
+        ];
+        ?>
+
+        <?php foreach ($cards as $card): ?>
+            <div class="col-xl-3 col-md-6 mb-4">
+                <div class="card shadow-sm border-0 h-100"
+                     style="border-left:4px solid
+                     var(--<?= h($card['color']) ?>)!important;">
+                    <div class="card-body">
+                        <div class="d-flex justify-content-between
+                                    align-items-center">
+                            <div>
+                                <div class="small text-muted
+                                            text-uppercase mb-2">
+                                    <?= h($card['label']) ?>
+                                </div>
+                                <h3 class="font-weight-bold mb-0">
+                                    <?= (int) $card['value'] ?>
+                                </h3>
+                            </div>
+
+                            <i class="fas <?= h($card['icon']) ?>
+                               fa-2x text-<?= h($card['color']) ?>"></i>
+                        </div>
                     </div>
                 </div>
             </div>
-        </div>
+        <?php endforeach; ?>
+
     </div>
 
-    <div class="col-xl-3 col-md-6 mb-4">
-        <div class="card border-left-success shadow h-100 py-2 border-0" style="border-left: 4px solid #1cc88a !important;">
-            <div class="card-body">
-                <div class="row no-gutters align-items-center">
-                    <div class="col mr-2">
-                        <div class="text-xs font-weight-bold text-success text-uppercase mb-1">TOTAL PRESTASI SISWA</div>
-                        <div class="h3 mb-0 font-weight-bold text-gray-800"><?= $total_prestasi; ?></div>
-                    </div>
-                    <div class="col-auto">
-                        <i class="fas fa-trophy fa-2x text-success"></i>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
+    <!-- SAMBUTAN -->
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-body">
+            <h5 class="font-weight-bold text-primary">
+                Halo, <?= h(
+                    $_SESSION['nama']
+                    ?? $_SESSION['username']
+                    ?? 'Pengguna'
+                ) ?>!
+            </h5>
 
-    <div class="col-xl-3 col-md-6 mb-4">
-        <div class="card border-left-info shadow h-100 py-2 border-0" style="border-left: 4px solid #36b9cc !important;">
-            <div class="card-body">
-                <div class="row no-gutters align-items-center">
-                    <div class="col mr-2">
-                        <div class="text-xs font-weight-bold text-info text-uppercase mb-1">KATEGORI PELANGGARAN</div>
-                        <div class="h3 mb-0 font-weight-bold text-gray-800"><?= $total_kategori; ?></div>
-                    </div>
-                    <div class="col-auto">
-                        <i class="fas fa-tags fa-2x text-info"></i>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
+            <p class="text-muted">
+                Selamat datang di Sistem Informasi Pelanggaran
+                Siswa. Gunakan menu untuk mengelola data siswa,
+                guru, prestasi, pelanggaran, dan laporan.
+            </p>
 
-    <div class="col-xl-3 col-md-6 mb-4">
-        <div class="card border-left-danger shadow h-100 py-2 border-0" style="border-left: 4px solid #e74a3b !important;">
-            <div class="card-body">
-                <div class="row no-gutters align-items-center">
-                    <div class="col mr-2">
-                        <div class="text-xs font-weight-bold text-danger text-uppercase mb-1">TOTAL KASUS PELANGGARAN</div>
-                        <div class="h3 mb-0 font-weight-bold text-gray-800"><?= $total_kasus; ?></div>
-                    </div>
-                    <div class="col-auto">
-                        <i class="fas fa-exclamation-triangle fa-2x text-danger"></i>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
-</div>
-
-<!-- KARTU SAMBUTAN & QUICK ACTION -->
-<div class="card shadow-sm border-0 mb-4">
-    <div class="card-body">
-        <h5 class="card-title text-primary font-weight-bold">Halo, <?= htmlspecialchars($_SESSION['nama'] ?? $_SESSION['username'] ?? 'Pengguna'); ?>! 👋</h5>
-        <p class="card-text text-muted mb-3">
-            Anda berhasil masuk sebagai level <strong><?= ucfirst(htmlspecialchars($_SESSION['role'] ?? 'User')); ?></strong>. Silakan gunakan navigasi menu di sebelah kiri atau pintasan di bawah ini untuk mengelola data operasional sistem.
-        </p>
-        
-        <!-- TOMBOL PINTASAN CEPAAT (QUICK ACTION) -->
-        <div class="pt-2 border-top">
-            <span class="text-xs font-weight-bold text-secondary d-block mb-2"><i class="fas fa-bolt text-warning mr-1"></i> Pintasan Cepat (Quick Action):</span>
-            <div class="btn-group flex-wrap gap-2">
-                <a href="laporan.php" class="btn btn-outline-primary btn-sm mr-2 mb-2">
-                    <i class="fas fa-file-alt mr-1"></i> Lihat Rekap Laporan
+            <div class="d-flex flex-wrap">
+                <a href="siswa.php"
+                   class="btn btn-outline-primary btn-sm mr-2 mb-2">
+                    Data Siswa
                 </a>
-                <a href="prestasi.php" class="btn btn-outline-success btn-sm mr-2 mb-2">
-                    <i class="fas fa-trophy mr-1"></i> Data Prestasi Siswa
+
+                <a href="guru.php"
+                   class="btn btn-outline-success btn-sm mr-2 mb-2">
+                    Data Guru
                 </a>
-                <a href="pelanggaran_kategori.php" class="btn btn-outline-info btn-sm mr-2 mb-2">
-                    <i class="fas fa-tags mr-1"></i> Data Kategori Pelanggaran
+
+                <a href="pelanggaran.php"
+                   class="btn btn-outline-danger btn-sm mr-2 mb-2">
+                    Data Pelanggaran
                 </a>
-                <?php if (strtolower($_SESSION['role'] ?? '') === 'admin'): ?>
-                    <a href="pelanggaran_kategori_tambah.php" class="btn btn-outline-success btn-sm mr-2 mb-2">
-                        <i class="fas fa-plus-circle mr-1"></i> Tambah Kategori
-                    </a>
-                <?php endif; ?>
-                <a href="profile.php" class="btn btn-outline-secondary btn-sm mb-2">
-                    <i class="fas fa-user-cog mr-1"></i> Pengaturan Profil
+
+                <a href="prestasi.php"
+                   class="btn btn-outline-warning btn-sm mr-2 mb-2">
+                    Data Prestasi
+                </a>
+
+                <a href="laporan.php"
+                   class="btn btn-outline-info btn-sm mb-2">
+                    Laporan
                 </a>
             </div>
         </div>
     </div>
-</div>
 
-<div class="row">
-    <!-- TABEL RINGKASAN PRESTASI TERBARU -->
-    <div class="col-lg-6 mb-4">
-        <div class="card shadow-sm border-0 h-100">
-            <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
-                <h6 class="m-0 font-weight-bold text-success">
-                    <i class="fas fa-trophy mr-2"></i> 5 Catatan Prestasi Terbaru
-                </h6>
-                <a href="prestasi.php" class="btn btn-sm btn-success">Lihat Semua <i class="fas fa-arrow-right ml-1"></i></a>
-            </div>
-            <div class="card-body p-0">
-                <div class="table-responsive">
-                    <table class="table table-hover table-striped align-middle mb-0">
-                        <thead class="thead-light">
+    <!-- TABEL PELANGGARAN -->
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-white py-3">
+            <h5 class="font-weight-bold text-danger mb-0">
+                <i class="fas fa-exclamation-circle mr-2"></i>
+                5 Pelanggaran Terbaru
+            </h5>
+        </div>
+
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-striped table-hover">
+                    <thead>
+                        <tr>
+                            <th>No.</th>
+                            <th>Tanggal</th>
+                            <th>Nama Siswa</th>
+                            <th>Kelas</th>
+                            <th>Kategori</th>
+                            <th>Poin</th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+                    <?php if (!$pelanggaran): ?>
+                        <tr>
+                            <td colspan="6"
+                                class="text-center text-muted">
+                                Belum ada data pelanggaran,
+                                atau struktur tabel perlu disesuaikan.
+                            </td>
+                        </tr>
+                    <?php else: ?>
+                        <?php foreach ($pelanggaran as $i => $row): ?>
                             <tr>
-                                <th width="40" class="text-center">No</th>
-                                <th>Nama Siswa & Kelas</th>
-                                <th>Nama Prestasi / Lomba</th>
-                                <th width="80" class="text-center">Poin</th>
+                                <td><?= $i + 1 ?></td>
+                                <td><?= h($row['tanggal']) ?></td>
+                                <td><?= h($row['nama_siswa']) ?></td>
+                                <td><?= h($row['nama_kelas']) ?></td>
+                                <td><?= h($row['nama_kategori']) ?></td>
+                                <td>
+                                    <span class="badge badge-danger">
+                                        <?= (int) ($row['poin'] ?? 0) ?>
+                                    </span>
+                                </td>
                             </tr>
-                        </thead>
-                        <tbody>
-                            <?php 
-                            $no_p = 1;
-                            if ($query_recent_prestasi && mysqli_num_rows($query_recent_prestasi) > 0):
-                                while ($row_p = mysqli_fetch_assoc($query_recent_prestasi)):
-                                    $nama_siswa_p = $row_p['nama_siswa'] ?? ('Siswa ID ' . ($row_p['id_siswa'] ?? ''));
-                                    $kelas_p = $row_p['nama_kelas'] ?? '-';
-                                    $judul_prestasi = $row_p['nama_prestasi'] ?? $row_p['juduL'] ?? $row_p['keterangan'] ?? 'Juara Lomba';
-                                    $poin_p = $row_p['poin'] ?? $row_p['poin_prestasi'] ?? 10;
-                            ?>
-                                <tr>
-                                    <td class="text-center"><?= $no_p++; ?></td>
-                                    <td>
-                                        <strong><?= htmlspecialchars($nama_siswa_p); ?></strong><br>
-                                        <small class="text-muted">Kelas: <?= htmlspecialchars($kelas_p); ?></small>
-                                    </td>
-                                    <td><span class="badge badge-success p-2"><?= htmlspecialchars($judul_prestasi); ?></span></td>
-                                    <td class="text-center font-weight-bold text-success">+<?= htmlspecialchars($poin_p); ?></td>
-                                </tr>
-                            <?php 
-                                endwhile;
-                            else:
-                            ?>
-                                <tr>
-                                    <td colspan="4" class="text-center text-muted py-4">Belum ada catatan prestasi siswa.</td>
-                                </tr>
-                            <?php endif; ?>
-                        </tbody>
-                    </table>
-                </div>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
+                    </tbody>
+                </table>
             </div>
         </div>
     </div>
 
-    <!-- TABEL RINGKASAN PELANGGARAN TERBARU -->
-    <div class="col-lg-6 mb-4">
-        <div class="card shadow-sm border-0 h-100">
-            <div class="card-header bg-white py-3 d-flex justify-content-between align-items-center">
-                <h6 class="m-0 font-weight-bold text-danger">
-                    <i class="fas fa-history mr-2"></i> 5 Catatan Pelanggaran Terbaru
-                </h6>
-                <a href="laporan.php" class="btn btn-sm btn-danger">Lihat Semua <i class="fas fa-arrow-right ml-1"></i></a>
-            </div>
-            <div class="card-body p-0">
-                <div class="table-responsive">
-                    <table class="table table-hover table-striped align-middle mb-0">
-                        <thead class="thead-light">
+    <!-- TABEL PRESTASI -->
+    <div class="card border-0 shadow-sm mb-4">
+        <div class="card-header bg-white py-3">
+            <h5 class="font-weight-bold text-success mb-0">
+                <i class="fas fa-trophy mr-2"></i>
+                5 Prestasi Terbaru
+            </h5>
+        </div>
+
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-striped table-hover">
+                    <thead>
+                        <tr>
+                            <th>No.</th>
+                            <th>Tanggal</th>
+                            <th>Nama Siswa</th>
+                            <th>Kelas</th>
+                            <th>Prestasi</th>
+                            <th>Poin</th>
+                        </tr>
+                    </thead>
+
+                    <tbody>
+                    <?php if (!$prestasi): ?>
+                        <tr>
+                            <td colspan="6"
+                                class="text-center text-muted">
+                                Belum ada data prestasi,
+                                atau struktur tabel perlu disesuaikan.
+                            </td>
+                        </tr>
+                    <?php else: ?>
+                        <?php foreach ($prestasi as $i => $row): ?>
                             <tr>
-                                <th width="40" class="text-center">No</th>
-                                <th>Nama Siswa & Kelas</th>
-                                <th>Kategori</th>
-                                <th width="80" class="text-center">Poin</th>
+                                <td><?= $i + 1 ?></td>
+                                <td><?= h($row['tanggal']) ?></td>
+                                <td><?= h($row['nama_siswa']) ?></td>
+                                <td><?= h($row['nama_kelas']) ?></td>
+                                <td><?= h($row['nama_prestasi']) ?></td>
+                                <td>
+                                    <span class="badge badge-success">
+                                        +<?= (int) ($row['poin'] ?? 0) ?>
+                                    </span>
+                                </td>
                             </tr>
-                        </thead>
-                        <tbody>
-                            <?php 
-                            $no = 1;
-                            if ($query_recent && mysqli_num_rows($query_recent) > 0):
-                                while ($row = mysqli_fetch_assoc($query_recent)):
-                                    $nama_siswa = $row['nama_siswa'] ?? ('Siswa ID ' . ($row['id_siswa'] ?? ''));
-                                    $kelas = $row['nama_kelas'] ?? '-';
-                                    $kategori = $row['nama_kategori'] ?? $row['kategori'] ?? 'Pelanggaran';
-                                    $poin = $row['poin'] ?? $row['poin_pelanggaran'] ?? 10;
-                            ?>
-                                <tr>
-                                    <td class="text-center"><?= $no++; ?></td>
-                                    <td>
-                                        <strong><?= htmlspecialchars($nama_siswa); ?></strong><br>
-                                        <small class="text-muted">Kelas: <?= htmlspecialchars($kelas); ?></small>
-                                    </td>
-                                    <td><span class="badge badge-warning p-2"><?= htmlspecialchars($kategori); ?></span></td>
-                                    <td class="text-center font-weight-bold text-danger">+<?= htmlspecialchars($poin); ?></td>
-                                </tr>
-                            <?php 
-                                endwhile;
-                            else:
-                            ?>
-                                <tr>
-                                    <td colspan="4" class="text-center text-muted py-4">Belum ada catatan pelanggaran terbaru.</td>
-                                </tr>
-                            <?php endif; ?>
-                        </tbody>
-                    </table>
-                </div>
+                        <?php endforeach; ?>
+                    <?php endif; ?>
+                    </tbody>
+                </table>
             </div>
         </div>
     </div>
+
 </div>
 
 <?php include 'footer.php'; ?>

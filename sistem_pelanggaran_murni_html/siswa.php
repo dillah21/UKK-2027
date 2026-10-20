@@ -50,12 +50,74 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['tambah_siswa'])) {
     }
 }
 
-// 2. Ambil Pilihan Kelas
+// 2. Proses Edit Siswa
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_siswa'])) {
+    $id = intval($_POST['id'] ?? 0);
+    $nis = trim($_POST['nis'] ?? '');
+    $nama = trim($_POST['nama'] ?? '');
+    $kelas_id = intval($_POST['kelas_id'] ?? 0);
+    $jk = trim($_POST['jk'] ?? 'L');
+
+    if ($id > 0 && !empty($nama)) {
+        $stmt = $koneksi->prepare("UPDATE t_siswa SET nis = ?, nama = ?, jenis_kelamin = ? WHERE id = ?");
+        $stmt->bind_param("sssi", $nis, $nama, $jk, $id);
+        
+        if ($stmt->execute()) {
+            $stmt->close();
+
+            // Update atau Insert relasi kelas di t_kelas_siswa
+            $cek_ks = $koneksi->query("SELECT id FROM t_kelas_siswa WHERE siswa_id = $id AND status_aktif = 1");
+            if ($cek_ks && $cek_ks->num_rows > 0) {
+                if ($kelas_id > 0) {
+                    $stmt_up = $koneksi->prepare("UPDATE t_kelas_siswa SET kelas_id = ? WHERE siswa_id = ? AND status_aktif = 1");
+                    $stmt_up->bind_param("ii", $kelas_id, $id);
+                    $stmt_up->execute();
+                    $stmt_up->close();
+                } else {
+                    $koneksi->query("UPDATE t_kelas_siswa SET status_aktif = 0 WHERE siswa_id = $id AND status_aktif = 1");
+                }
+            } else if ($kelas_id > 0) {
+                $ta_q = $koneksi->query("SELECT id FROM t_tahun_ajaran WHERE status_aktif = 1 LIMIT 1");
+                $ta_id = ($ta_q && $ta_q->num_rows > 0) ? $ta_q->fetch_assoc()['id'] : 1;
+                $tgl_mulai = date('Y-m-d');
+                $tgl_selesai = date('Y-m-d', strtotime('+1 year'));
+                $status_aktif = 1;
+
+                $stmt_ins = $koneksi->prepare("INSERT INTO t_kelas_siswa (siswa_id, tahun_ajaran_id, kelas_id, tanggal_mulai, tanggal_selesai, status_aktif) VALUES (?, ?, ?, ?, ?, ?)");
+                $stmt_ins->bind_param("iiissii", $id, $ta_id, $kelas_id, $tgl_mulai, $tgl_selesai, $status_aktif);
+                $stmt_ins->execute();
+                $stmt_ins->close();
+            }
+
+            $pesan_sukses = "Data siswa berhasil diperbarui!";
+        } else {
+            $pesan_error = "Gagal memperbarui data: " . $koneksi->error;
+        }
+    } else {
+        $pesan_error = "Nama siswa tidak boleh kosong!";
+    }
+}
+
+// 3. Proses Hapus Siswa
+if (isset($_GET['action']) && $_GET['action'] === 'hapus' && isset($_GET['id'])) {
+    $id_hapus = intval($_GET['id']);
+    if ($id_hapus > 0) {
+        // Hapus relasi kelas dan data siswa
+        @$koneksi->query("DELETE FROM t_kelas_siswa WHERE siswa_id = $id_hapus");
+        if ($koneksi->query("DELETE FROM t_siswa WHERE id = $id_hapus")) {
+            $pesan_sukses = "Data siswa berhasil dihapus!";
+        } else {
+            $pesan_error = "Gagal menghapus data: " . $koneksi->error;
+        }
+    }
+}
+
+// Ambil Pilihan Kelas untuk Dropdown
 $list_kelas = $koneksi->query("SELECT * FROM t_kelas ORDER BY nama ASC");
 
-// 3. Ambil Data Siswa beserta Kelasnya menggunakan JOIN lewat t_kelas_siswa
+// Ambil Data Siswa beserta Kelasnya menggunakan JOIN lewat t_kelas_siswa
 $result_siswa = $koneksi->query("
-    SELECT s.*, k.nama AS nama_kelas 
+    SELECT s.*, k.id AS kelas_id, k.nama AS nama_kelas 
     FROM t_siswa s 
     LEFT JOIN t_kelas_siswa ks ON s.id = ks.siswa_id AND ks.status_aktif = 1
     LEFT JOIN t_kelas k ON ks.kelas_id = k.id 
@@ -106,18 +168,98 @@ include 'header.php';
                                 </tr>
                             </thead>
                             <tbody>
-                                <?php if ($result_siswa && $result_siswa->num_rows > 0): $no = 1; while ($row = $result_siswa->fetch_assoc()): ?>
+                                <?php if ($result_siswa && $result_siswa->num_rows > 0): $no = 1; while ($row = $result_siswa->fetch_assoc()): 
+                                    $id = $row['id'];
+                                    $nis = htmlspecialchars($row['nis'] ?? '');
+                                    $nama = htmlspecialchars($row['nama'] ?? '');
+                                    $nama_kelas = htmlspecialchars($row['nama_kelas'] ?? '-');
+                                    $kelas_id_aktif = $row['kelas_id'] ?? 0;
+                                    $jk = $row['jenis_kelamin'] ?? 'L';
+                                ?>
                                     <tr>
                                         <td class="text-center"><?= $no++; ?></td>
-                                        <td class="text-center"><?= htmlspecialchars($row['nis'] ?? '-'); ?></td>
-                                        <td><?= htmlspecialchars($row['nama'] ?? '-'); ?></td>
-                                        <td class="text-center"><?= htmlspecialchars($row['nama_kelas'] ?? '-'); ?></td>
-                                        <td class="text-center"><?= htmlspecialchars($row['jenis_kelamin'] ?? '-'); ?></td>
+                                        <td class="text-center"><?= !empty($nis) ? $nis : '-'; ?></td>
+                                        <td><?= $nama; ?></td>
+                                        <td class="text-center"><?= $nama_kelas; ?></td>
+                                        <td class="text-center"><?= $jk; ?></td>
                                         <td class="text-center">
-                                            <a href="edit_siswa.php?id=<?= $row['id']; ?>" class="btn btn-warning btn-sm text-white" title="Edit"><i class="fas fa-edit"></i></a>
-                                            <a href="hapus_siswa.php?id=<?= $row['id']; ?>" class="btn btn-danger btn-sm" onclick="return confirm('Yakin ingin menghapus data ini?');" title="Hapus"><i class="fas fa-trash"></i></a>
+                                            <button class="btn btn-warning btn-sm" data-toggle="modal" data-target="#editSiswa<?= $id; ?>" title="Edit"><i class="fas fa-edit"></i></button>
+                                            <button class="btn btn-danger btn-sm" data-toggle="modal" data-target="#hapusSiswa<?= $id; ?>" title="Hapus"><i class="fas fa-trash"></i></button>
                                         </td>
                                     </tr>
+
+                                    <!-- MODAL EDIT SISWA -->
+                                    <div class="modal fade" id="editSiswa<?= $id; ?>" tabindex="-1" role="dialog" aria-hidden="true">
+                                        <div class="modal-dialog" role="document">
+                                            <form method="POST" action="siswa.php" class="modal-content">
+                                                <input type="hidden" name="id" value="<?= $id; ?>">
+                                                <div class="modal-header bg-warning text-dark">
+                                                    <h5 class="modal-title font-weight-bold"><i class="fas fa-edit mr-2"></i> Edit Data Siswa</h5>
+                                                    <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+                                                </div>
+                                                <div class="modal-body text-left">
+                                                    <div class="form-group">
+                                                        <label class="font-weight-bold">NIS / No Induk</label>
+                                                        <input type="text" class="form-control" name="nis" value="<?= $nis; ?>">
+                                                    </div>
+                                                    <div class="form-group">
+                                                        <label class="font-weight-bold">Nama Lengkap Siswa <span class="text-danger">*</span></label>
+                                                        <input type="text" class="form-control" name="nama" required value="<?= $nama; ?>">
+                                                    </div>
+                                                    <div class="form-group">
+                                                        <label class="font-weight-bold">Kelas</label>
+                                                        <select class="form-control" name="kelas_id">
+                                                            <option value="0">-- Pilih Kelas --</option>
+                                                            <?php 
+                                                            // Reset pointer atau query ulang list kelas untuk setiap modal
+                                                            $list_kelas_m = $koneksi->query("SELECT * FROM t_kelas ORDER BY nama ASC");
+                                                            if ($list_kelas_m && $list_kelas_m->num_rows > 0): 
+                                                                while ($kls = $list_kelas_m->fetch_assoc()): 
+                                                            ?>
+                                                                    <option value="<?= $kls['id']; ?>" <?= ($kelas_id_aktif == $kls['id']) ? 'selected' : ''; ?>>
+                                                                        <?= htmlspecialchars($kls['nama']); ?>
+                                                                    </option>
+                                                            <?php 
+                                                                endwhile; 
+                                                            endif; 
+                                                            ?>
+                                                        </select>
+                                                    </div>
+                                                    <div class="form-group">
+                                                        <label class="font-weight-bold">Jenis Kelamin</label>
+                                                        <select class="form-control" name="jk">
+                                                            <option value="L" <?= ($jk == 'L') ? 'selected' : ''; ?>>Laki-laki</option>
+                                                            <option value="P" <?= ($jk == 'P') ? 'selected' : ''; ?>>Perempuan</option>
+                                                        </select>
+                                                    </div>
+                                                </div>
+                                                <div class="modal-footer">
+                                                    <button type="button" class="btn btn-secondary btn-sm" data-dismiss="modal">Batal</button>
+                                                    <button type="submit" name="edit_siswa" class="btn btn-warning btn-sm font-weight-bold"><i class="fas fa-save mr-1"></i> Simpan</button>
+                                                </div>
+                                            </form>
+                                        </div>
+                                    </div>
+
+                                    <!-- MODAL HAPUS SISWA -->
+                                    <div class="modal fade" id="hapusSiswa<?= $id; ?>" tabindex="-1" role="dialog" aria-hidden="true">
+                                        <div class="modal-dialog" role="document">
+                                            <div class="modal-content">
+                                                <div class="modal-header bg-danger text-white">
+                                                    <h5 class="modal-title font-weight-bold"><i class="fas fa-trash mr-2"></i> Hapus Siswa</h5>
+                                                    <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+                                                </div>
+                                                <div class="modal-body text-left">
+                                                    Apakah Anda yakin ingin menghapus data siswa <strong><?= $nama; ?></strong>?
+                                                </div>
+                                                <div class="modal-footer">
+                                                    <button type="button" class="btn btn-secondary btn-sm" data-dismiss="modal">Batal</button>
+                                                    <a href="siswa.php?action=hapus&id=<?= $id; ?>" class="btn btn-danger btn-sm">Ya, Hapus</a>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    </div>
+
                                 <?php endwhile; endif; ?>
                             </tbody>
                         </table>
@@ -137,9 +279,9 @@ include 'header.php';
 <div class="modal fade" id="modalTambahSiswa" tabindex="-1" role="dialog" aria-hidden="true">
     <div class="modal-dialog" role="document">
         <form method="POST" action="siswa.php" class="modal-content">
-            <div class="modal-header">
-                <h5 class="modal-title"><i class="fas fa-user-plus mr-2"></i> Tambah Siswa Baru</h5>
-                <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+            <div class="modal-header bg-primary text-white">
+                <h5 class="modal-title font-weight-bold"><i class="fas fa-user-plus mr-2"></i> Tambah Siswa Baru</h5>
+                <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
             </div>
             <div class="modal-body">
                 <div class="form-group">
@@ -171,7 +313,7 @@ include 'header.php';
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary btn-sm" data-dismiss="modal">Batal</button>
-                <button type="submit" name="tambah_siswa" class="btn btn-primary btn-sm"><i class="fas fa-save mr-1"></i> Simpan Data</button>
+                <button type="submit" name="tambah_siswa" class="btn btn-primary btn-sm"><i class="fas fa-save mr-1"></i> Simpan</button>
             </div>
         </form>
     </div>

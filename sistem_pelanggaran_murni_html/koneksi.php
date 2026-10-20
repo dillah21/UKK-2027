@@ -1,16 +1,22 @@
+
 <?php
 $host = "localhost";
 $user = "root";
 $pass = "";
 $db   = "db_ukk_2026";
 
-$koneksi = mysqli_connect($host, $user, $pass, $db);
+mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 
-if (!$koneksi) {
-    die("Koneksi ke database gagal: " . mysqli_connect_error());
-}
+try {
+    $koneksi = new mysqli($host, $user, $pass, $db);
+    $koneksi->set_charset("utf8mb4");
+} catch (mysqli_sql_exception $e) {
+    error_log("Database connection error: " . $e->getMessage());
 
-if (session_status() === PHP_SESSION_NONE) {
-    session_start();
+    http_response_code(500);
+    exit(
+        "Koneksi database gagal. Pastikan MySQL aktif " .
+        "dan nama database di koneksi.php sudah benar."
+    );
 }
 ?>
