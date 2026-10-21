@@ -167,7 +167,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     <div class="card login-card mx-auto">
         <div class="card-body p-4 p-md-5">
             <div class="text-center mb-4">
-                <h2 class="login-title">SISWA TERTIB</h2>
+                <h2 class="login-title">LOGIN</h2>
                 <p class="text-muted">
                     Sistem Informasi Pelanggaran Siswa
                 </p>

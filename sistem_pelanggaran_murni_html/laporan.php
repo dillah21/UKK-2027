@@ -574,11 +574,11 @@ include 'header.php';
         </div>
     </div>
 
-    <footer class="text-center text-muted small py-3">
+    <!-- <footer class="text-center text-muted small py-3">
         &copy; 2026 - Sistem Informasi Pelanggaran Siswa
         &bull; Developed by
         <strong>Azril Akbar Fawji Abdillah</strong>
-    </footer>
+    </footer> -->
 
 </div>
 

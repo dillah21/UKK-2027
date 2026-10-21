@@ -59,24 +59,27 @@ if (file_exists('sidebar.php')) include 'sidebar.php';
                             <tbody>
                                 <?php
                                 $no = 1;
+                                $result = false;
 
-                                // Query fleksibel yang kompatibel dengan t_siswa, t_kelas_siswa, dan t_kelas
-                                $query = "SELECT prestasi.*, t_siswa.nama AS nama_siswa, t_kelas.nama AS nama_kelas 
-                                          FROM prestasi 
-                                          JOIN t_siswa ON prestasi.id_siswa = t_siswa.id 
-                                          LEFT JOIN t_kelas_siswa ON t_siswa.id = t_kelas_siswa.siswa_id AND t_kelas_siswa.status_aktif = 1
-                                          LEFT JOIN t_kelas ON t_kelas_siswa.kelas_id = t_kelas.id 
-                                          ORDER BY prestasi.tanggal DESC";
-                                
-                                $result = mysqli_query($koneksi, $query);
-
-                                // Fallback jika query JOIN kompleks menemukan isu struktur
-                                if (!$result) {
-                                    $query_alt = "SELECT prestasi.*, t_siswa.nama AS nama_siswa 
-                                                  FROM prestasi 
-                                                  JOIN t_siswa ON prestasi.id_siswa = t_siswa.id 
-                                                  ORDER BY prestasi.tanggal DESC";
-                                    $result = mysqli_query($koneksi, $query_alt);
+                                // Menangkap error query agar tidak langsung fatal crash jika tabel belum ada
+                                try {
+                                    $query = "SELECT prestasi.*, t_siswa.nama AS nama_siswa, t_kelas.nama AS nama_kelas 
+                                              FROM prestasi 
+                                              JOIN t_siswa ON prestasi.id_siswa = t_siswa.id 
+                                              LEFT JOIN t_kelas_siswa ON t_siswa.id = t_kelas_siswa.siswa_id AND t_kelas_siswa.status_aktif = 1
+                                              LEFT JOIN t_kelas ON t_kelas_siswa.kelas_id = t_kelas.id 
+                                              ORDER BY prestasi.tanggal DESC";
+                                    $result = mysqli_query($koneksi, $query);
+                                } catch (Exception $e) {
+                                    try {
+                                        $query_alt = "SELECT prestasi.*, t_siswa.nama AS nama_siswa 
+                                                      FROM prestasi 
+                                                      JOIN t_siswa ON prestasi.id_siswa = t_siswa.id 
+                                                      ORDER BY prestasi.tanggal DESC";
+                                        $result = mysqli_query($koneksi, $query_alt);
+                                    } catch (Exception $ex) {
+                                        $result = false;
+                                    }
                                 }
 
                                 if ($result && mysqli_num_rows($result) > 0) {
@@ -111,7 +114,7 @@ if (file_exists('sidebar.php')) include 'sidebar.php';
                                 } else {
                                 ?>
                                     <tr>
-                                        <td colspan="8" class="text-center py-4 text-muted">Belum ada data prestasi siswa di database.</td>
+                                        <td colspan="8" class="text-center py-4 text-muted">Belum ada data prestasi siswa di database atau tabel belum dibuat.</td>
                                     </tr>
                                 <?php } ?>
                             </tbody>
