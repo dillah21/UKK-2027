@@ -115,7 +115,7 @@ $poinP = lp_pick(
 
 $deskripsiP = lp_pick(
     $pelanggaranCols,
-    ['catatan', 'deskripsi', 'keterangan', 'uraian']
+    ['keterangan', 'catatan', 'deskripsi', 'uraian']
 );
 
 $tindakanP = lp_pick(
@@ -189,7 +189,11 @@ if (!$errors) {
             $sql .= ' LEFT JOIN t_siswa s ON 1 = 0 ';
         }
 
-        if ($idKelasS && $idKelas) {
+        $idKelasP = lp_pick($pelanggaranCols, ['kelas_id', 'id_kelas']);
+        if ($idKelasP && $idKelas) {
+            $sql .= " LEFT JOIN t_kelas k
+                      ON p.`$idKelasP` = k.`$idKelas` ";
+        } elseif ($idKelasS && $idKelas) {
             $sql .= " LEFT JOIN t_kelas k
                       ON s.`$idKelasS` = k.`$idKelas` ";
         } else {
@@ -473,7 +477,7 @@ include 'header.php';
 
         <div class="card-header font-weight-bold">
             <i class="fas fa-list mr-2"></i>
-            Rekapitulasi Data Pelanggaran
+            Rekapitulasi Jenis Pelanggaran
         </div>
 
         <div class="card-body">

@@ -63,7 +63,7 @@ if (isset($_GET['edit'])) {
 // Data Referensi untuk Dropdown (Siswa, Kelas, Tahun Ajaran)
 $list_siswa = $koneksi->query("SELECT id, nis, nama FROM t_siswa ORDER BY nama ASC");
 $list_kelas = $koneksi->query("SELECT id, nama FROM t_kelas ORDER BY nama ASC");
-$list_ta = $koneksi->query("SELECT id, nama FROM t_tahun_ajaran ORDER BY id DESC");
+$list_ta = $koneksi->query("SELECT id, nama FROM t_tahun_ajaran WHERE status_aktif = 1 ORDER BY id DESC");
 
 // Handling Pencarian & Fetch Data dengan JOIN
 $search = trim($_GET['search'] ?? '');

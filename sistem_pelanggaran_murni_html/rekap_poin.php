@@ -32,28 +32,24 @@ $sql = "
         s.id,
         s.nisn,
         s.nama AS nama_siswa,
-        COALESCE(k.nama, 'Belum Ada Kelas') AS nama_kelas,
+        COALESCE(k.nama, lp.nama_kelas, 'Belum Ada Kelas') AS nama_kelas,
         COALESCE(rp.total_poin, 0) AS total_poin
     FROM t_siswa s
-
     LEFT JOIN (
-        SELECT
-            r.siswa_id,
-            SUM(p.poin) AS total_poin
-        FROM t_riwayat_pelanggaran r
-        INNER JOIN t_pelanggaran p
-            ON r.pelanggaran_id = p.id
-        GROUP BY r.siswa_id
-    ) rp ON s.id = rp.siswa_id
-
-    LEFT JOIN (
-        SELECT siswa_id, MAX(kelas_id) AS kelas_id
-        FROM t_kelas_siswa
+        SELECT siswa_id, SUM(poin) AS total_poin
+        FROM t_pelanggaran_siswa
         GROUP BY siswa_id
-    ) ks ON s.id = ks.siswa_id
-
-    LEFT JOIN t_kelas k ON ks.kelas_id = k.id
-
+    ) rp ON s.id = rp.siswa_id
+    LEFT JOIN (
+        SELECT p1.siswa_id, p1.kelas_id, p1.nama_kelas
+        FROM t_pelanggaran_siswa p1
+        INNER JOIN (
+            SELECT siswa_id, MAX(id) AS id_terakhir
+            FROM t_pelanggaran_siswa
+            GROUP BY siswa_id
+        ) p2 ON p1.siswa_id = p2.siswa_id AND p1.id = p2.id_terakhir
+    ) lp ON s.id = lp.siswa_id
+    LEFT JOIN t_kelas k ON lp.kelas_id = k.id
     ORDER BY total_poin DESC, s.nama ASC
 ";
 
@@ -86,7 +82,7 @@ include 'header.php';
     <?php else: ?>
 
         <div class="table-responsive">
-            <table class="table table-bordered table-striped table-hover">
+            <table id="tabelRekap" class="table table-bordered table-striped table-hover" style="width:100%">
                 <thead class="thead-dark">
                     <tr>
                         <th>No</th>
@@ -153,6 +149,34 @@ include 'header.php';
 
     <?php endif; ?>
 </div>
+
+<script>
+(function () {
+    function initTabelRekap() {
+        if (window.jQuery && window.jQuery.fn.DataTable && !window.jQuery.fn.dataTable.isDataTable('#tabelRekap')) {
+            window.jQuery('#tabelRekap').DataTable({
+                pageLength: 10,
+                lengthMenu: [[5, 10, 25, 50, -1], [5, 10, 25, 50, 'Semua']],
+                order: [],
+                autoWidth: false,
+                language: {
+                    search: 'Cari rekap:',
+                    searchPlaceholder: 'Cari nama siswa atau kelas...',
+                    lengthMenu: 'Tampilkan _MENU_ data',
+                    zeroRecords: 'Data tidak ditemukan',
+                    info: 'Menampilkan _START_ sampai _END_ dari _TOTAL_ data',
+                    infoEmpty: 'Tidak ada data tersedia',
+                    infoFiltered: '(difilter dari _MAX_ total data)',
+                    paginate: { first: 'Pertama', last: 'Terakhir', next: 'Selanjutnya', previous: 'Sebelumnya' }
+                }
+            });
+        }
+    }
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initTabelRekap);
+    } else { initTabelRekap(); }
+})();
+</script>
 
 <style>
 @media print {

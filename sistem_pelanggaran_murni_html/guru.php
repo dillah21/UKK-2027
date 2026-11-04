@@ -7,33 +7,71 @@ $pesan_sukses = ""; $pesan_error = "";
 
 // 1. TAMBAH GURU
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['tambah_guru'])) {
-    $nip = trim($_POST['nip'] ?? '');
+    $nip_raw = trim($_POST['nip'] ?? '');
+    $nip = preg_replace('/\\D+/', '', $nip_raw);
     $nama = trim($_POST['nama'] ?? '');
-    if (!empty($nama)) {
-        $sql = "INSERT INTO t_guru (nama) VALUES ('".$koneksi->real_escape_string($nama)."')";
-        if ($koneksi->query($sql)) {
-            $id_baru = $koneksi->insert_id;
-            if (!empty($nip)) {
-                @$koneksi->query("UPDATE t_guru SET nip='$nip' WHERE id=$id_baru");
-                @$koneksi->query("UPDATE t_guru SET nik='$nip' WHERE id=$id_baru");
-            }
-            $pesan_sukses = "Data guru berhasil ditambahkan!";
-        } else { $pesan_error = "Gagal menyimpan: " . $koneksi->error; }
-    } else { $pesan_error = "Nama guru wajib diisi!"; }
+
+    if ($nama === '' || strlen($nip_raw) > 15 || ($nip_raw !== '' && strlen($nip) !== strlen($nip_raw))) {
+        $pesan_error = strlen($nip_raw) > 15 ? 'NIP maksimal 15 digit!' : 'Nama wajib diisi dan NIP hanya boleh berisi angka.';
+    } else {
+        try {
+            $koneksi->begin_transaction();
+            $suffix = bin2hex(random_bytes(4));
+            $email_baru = 'guru.' . $suffix . '@sekolah.sch.id';
+            $password_sementara = bin2hex(random_bytes(6));
+            $hash = password_hash($password_sementara, PASSWORD_DEFAULT);
+            $token = bin2hex(random_bytes(20));
+
+            $user = $koneksi->prepare("INSERT INTO t_users (name, email, password, remember_token, role, created_at, updated_at) VALUES (?, ?, ?, ?, 'guru', NOW(), NOW())");
+            $user->bind_param('ssss', $nama, $email_baru, $hash, $token);
+            $user->execute();
+            $user_id_baru = $koneksi->insert_id;
+            $user->close();
+
+            $status_aktif = 1;
+            $guru = $koneksi->prepare("INSERT INTO t_guru (nip, nama, email, status_aktif, user_id, created_at, updated_at) VALUES (?, ?, ?, ?, ?, NOW(), NOW())");
+            $guru->bind_param('sssii', $nip, $nama, $email_baru, $status_aktif, $user_id_baru);
+            $guru->execute();
+            $guru->close();
+            $koneksi->commit();
+
+            $pesan_sukses = "Guru berhasil ditambahkan. Akun login: " . $email_baru . " | Password sementara: " . $password_sementara;
+        } catch (Throwable $e) {
+            $koneksi->rollback();
+            $pesan_error = "Gagal menambahkan guru: " . $e->getMessage();
+        }
+    }
 }
 
 // 2. EDIT GURU
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_guru'])) {
-    $id = intval($_POST['id'] ?? 0);
-    $nip = trim($_POST['nip'] ?? '');
+    $id = (int)($_POST['id'] ?? 0);
+    $nip_raw = trim($_POST['nip'] ?? '');
+    $nip = preg_replace('/\\D+/', '', $nip_raw);
     $nama = trim($_POST['nama'] ?? '');
-    if ($id > 0 && !empty($nama)) {
-        @$koneksi->query("UPDATE t_guru SET nama='".$koneksi->real_escape_string($nama)."' WHERE id=$id");
-        @$koneksi->query("UPDATE t_guru SET nama_guru='".$koneksi->real_escape_string($nama)."' WHERE id=$id");
-        @$koneksi->query("UPDATE t_guru SET nip='$nip' WHERE id=$id");
-        @$koneksi->query("UPDATE t_guru SET nik='$nip' WHERE id=$id");
-        $pesan_sukses = "Data guru berhasil diperbarui!";
-    } else { $pesan_error = "Nama guru tidak boleh kosong!"; }
+
+    if ($id <= 0 || $nama === '' || strlen($nip_raw) > 15 || ($nip_raw !== '' && strlen($nip) !== strlen($nip_raw))) {
+        $pesan_error = strlen($nip_raw) > 15 ? 'NIP maksimal 15 digit!' : 'Data guru tidak valid. NIP hanya boleh berisi angka.';
+    } else {
+        try {
+            $koneksi->begin_transaction();
+            $stmt = $koneksi->prepare("UPDATE t_guru SET nip=?, nama=?, updated_at=NOW() WHERE id=?");
+            $stmt->bind_param('ssi', $nip, $nama, $id);
+            $stmt->execute();
+            if ($stmt->affected_rows < 0) throw new Exception('Data guru gagal diperbarui.');
+            $stmt->close();
+
+            $user = $koneksi->prepare("UPDATE t_users u INNER JOIN t_guru g ON g.user_id=u.id SET u.name=?, u.updated_at=NOW() WHERE g.id=?");
+            $user->bind_param('si', $nama, $id);
+            $user->execute();
+            $user->close();
+            $koneksi->commit();
+            $pesan_sukses = 'Data guru berhasil diperbarui.';
+        } catch (Throwable $e) {
+            $koneksi->rollback();
+            $pesan_error = 'Gagal memperbarui guru: ' . $e->getMessage();
+        }
+    }
 }
 
 // 3. HAPUS GURU
@@ -57,8 +95,8 @@ include 'header.php';
                 <button class="btn btn-primary btn-sm" data-toggle="modal" data-target="#modalGuru"><i class="fas fa-plus mr-1"></i> Tambah Guru Baru</button>
             </div>
 
-            <?php if (!empty($pesan_sukses)): ?><div class="alert alert-success alert-dismissible fade show"><?= $pesan_sukses; ?><button type="button" class="close" data-dismiss="alert"><span>&times;</span></button></div><?php endif; ?>
-            <?php if (!empty($pesan_error)): ?><div class="alert alert-danger alert-dismissible fade show"><?= $pesan_error; ?><button type="button" class="close" data-dismiss="alert"><span>&times;</span></button></div><?php endif; ?>
+            <?php if (!empty($pesan_sukses)): ?><div class="alert alert-success alert-dismissible fade show"><?= htmlspecialchars($pesan_sukses, ENT_QUOTES, 'UTF-8'); ?><button type="button" class="close" data-dismiss="alert"><span>&times;</span></button></div><?php endif; ?>
+            <?php if (!empty($pesan_error)): ?><div class="alert alert-danger alert-dismissible fade show"><?= htmlspecialchars($pesan_error, ENT_QUOTES, 'UTF-8'); ?><button type="button" class="close" data-dismiss="alert"><span>&times;</span></button></div><?php endif; ?>
 
             <div class="card shadow-sm">
                 <div class="card-body">
@@ -95,7 +133,7 @@ include 'header.php';
                                                 <input type="hidden" name="id" value="<?= $id; ?>">
                                                 <div class="modal-header bg-warning text-dark"><h5 class="modal-title"><i class="fas fa-edit mr-2"></i> Edit Data Guru</h5><button type="button" class="close" data-dismiss="modal"><span>&times;</span></button></div>
                                                 <div class="modal-body">
-                                                    <div class="form-group"><label>NIP / NIK</label><input type="text" name="nip" class="form-control" value="<?= $nip; ?>"></div>
+                                                    <div class="form-group"><label>NIP / NIK</label><input type="text" name="nip" maxlength="15" inputmode="numeric" pattern="[0-9]{0,15}" title="Maksimal 15 digit" class="form-control" value="<?= $nip; ?>"></div>
                                                     <div class="form-group"><label>Nama Guru <span class="text-danger">*</span></label><input type="text" name="nama" class="form-control" value="<?= $nama; ?>" required></div>
                                                 </div>
                                                 <div class="modal-footer"><button type="button" class="btn btn-secondary btn-sm" data-dismiss="modal">Batal</button><button type="submit" name="edit_guru" class="btn btn-warning btn-sm"><i class="fas fa-save mr-1"></i> Simpan</button></div>
@@ -131,7 +169,7 @@ include 'header.php';
         <form method="POST" action="guru.php" class="modal-content">
             <div class="modal-header bg-primary text-white"><h5 class="modal-title"><i class="fas fa-chalkboard-teacher mr-2"></i> Tambah Guru Baru</h5><button type="button" class="close text-white" data-dismiss="modal"><span>&times;</span></button></div>
             <div class="modal-body">
-                <div class="form-group"><label>NIP / NIK</label><input type="text" name="nip" class="form-control" placeholder="Nomor NIP / NIK"></div>
+                <div class="form-group"><label>NIP / NIK</label><input type="text" name="nip" maxlength="15" inputmode="numeric" pattern="[0-9]{0,15}" title="Maksimal 15 digit" class="form-control" placeholder="Nomor NIP / NIK"></div>
                 <div class="form-group"><label>Nama Guru <span class="text-danger">*</span></label><input type="text" name="nama" class="form-control" required placeholder="Nama lengkap beserta gelar"></div>
             </div>
             <div class="modal-footer"><button type="button" class="btn btn-secondary btn-sm" data-dismiss="modal">Batal</button><button type="submit" name="tambah_guru" class="btn btn-primary btn-sm"><i class="fas fa-save mr-1"></i> Simpan</button></div>

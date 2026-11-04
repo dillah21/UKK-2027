@@ -3,117 +3,115 @@ require_once 'auth.php';
 require_once 'koneksi.php';
 
 $message = '';
+mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
+
+// Tabel fitur pembinaan dibuat otomatis bila belum tersedia.
+$koneksi->query("
+    CREATE TABLE IF NOT EXISTS t_tindak_lanjut (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        siswa_id INT NOT NULL,
+        tanggal_tindak_lanjut DATE NOT NULL,
+        status VARCHAR(40) NOT NULL,
+        catatan TEXT NULL,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_tindak_lanjut_siswa (siswa_id)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+");
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $siswa_id = intval($_POST['siswa_id'] ?? 0);
-    $tanggal = $_POST['tanggal'] ?? date('Y-m-d');
-    $status = $_POST['status'] ?? 'Belum Dipanggil';
+    $siswa_id = (int)($_POST['siswa_id'] ?? 0);
+    $tanggal = trim($_POST['tanggal'] ?? date('Y-m-d'));
+    $status = trim($_POST['status'] ?? '');
     $catatan = trim($_POST['catatan'] ?? '');
+    $status_valid = ['Belum Dipanggil', 'Proses Pembinaan', 'Orang Tua Hadir', 'Selesai'];
 
-    if ($siswa_id > 0) {
-        $stmt = $koneksi->prepare("INSERT INTO t_tindak_lanjut (siswa_id, tanggal_tindak_lanjut, status, catatan) VALUES (?, ?, ?, ?)");
-        $stmt->bind_param("isss", $siswa_id, $tanggal, $status, $catatan);
-        if ($stmt->execute()) {
-            $message = "Status tindak lanjut berhasil diperbarui.";
+    if ($siswa_id <= 0 || !preg_match('/^\\d{4}-\\d{2}-\\d{2}$/', $tanggal) || !in_array($status, $status_valid, true)) {
+        $message = 'Data tindak lanjut tidak valid.';
+    } else {
+        $cek = $koneksi->prepare("SELECT id FROM t_siswa WHERE id = ? LIMIT 1");
+        $cek->bind_param('i', $siswa_id);
+        $cek->execute();
+        $ada = $cek->get_result()->num_rows > 0;
+        $cek->close();
+
+        if (!$ada) {
+            $message = 'Siswa tidak ditemukan.';
         } else {
-            $message = "Gagal menyimpan: " . $stmt->error;
+            $stmt = $koneksi->prepare("INSERT INTO t_tindak_lanjut (siswa_id, tanggal_tindak_lanjut, status, catatan) VALUES (?, ?, ?, ?)");
+            $stmt->bind_param('isss', $siswa_id, $tanggal, $status, $catatan);
+            $stmt->execute();
+            $stmt->close();
+            $message = 'Status tindak lanjut berhasil disimpan.';
         }
-        $stmt->close();
     }
 }
 
-// Fetch Siswa yang Pernah Melakukan Pelanggaran
-$list_siswa = $koneksi->query("SELECT DISTINCT s.id, s.nisn, s.nama FROM t_siswa s JOIN t_riwayat_pelanggaran r ON s.id = r.siswa_id ORDER BY s.nama ASC");
+$list_siswa = $koneksi->query("
+    SELECT DISTINCT s.id, s.nisn, s.nama
+    FROM t_siswa s
+    INNER JOIN t_pelanggaran_siswa p ON p.siswa_id = s.id
+    ORDER BY s.nama ASC
+");
 
-// Fetch List Tindak Lanjut
-$sql_tl = "SELECT tl.*, s.nama AS nama_siswa, s.nisn 
-           FROM t_tindak_lanjut tl 
-           JOIN t_siswa s ON tl.siswa_id = s.id 
-           ORDER BY tl.id DESC";
-$res_tl = $koneksi->query($sql_tl);
+$res_tl = $koneksi->query("
+    SELECT tl.*, s.nama AS nama_siswa, s.nisn
+    FROM t_tindak_lanjut tl
+    INNER JOIN t_siswa s ON tl.siswa_id = s.id
+    ORDER BY tl.tanggal_tindak_lanjut DESC, tl.id DESC
+");
 
+function tl_h($v) { return htmlspecialchars((string)($v ?? ''), ENT_QUOTES, 'UTF-8'); }
 include 'header.php';
 ?>
-
-<h2>Catatan Tindak Lanjut BK / Pembinaan</h2>
-<p>Pantau perkembangan penanganan siswa bermasalah dan kehadiran orang tua.</p>
-
-<?php if ($message): ?>
-    <p><b><?= htmlspecialchars($message); ?></b></p>
-    <hr>
-<?php endif; ?>
-
-<form method="POST" action="tindak_lanjut.php">
-    <table border="0" cellpadding="5">
-        <tr>
-            <td><label for="siswa_id">Siswa (Bermasalah)</label></td>
-            <td>: 
-                <select id="siswa_id" name="siswa_id" required>
-                    <option value="">-- Pilih Siswa --</option>
-                    <?php if ($list_siswa): ?>
+<div class="container-fluid py-3">
+    <h2>Catatan Tindak Lanjut BK / Pembinaan</h2>
+    <p class="text-muted">Pantau perkembangan pembinaan dan komunikasi dengan orang tua/wali.</p>
+    <?php if ($message !== ''): ?><div class="alert alert-info"><?= tl_h($message) ?></div><?php endif; ?>
+    <div class="card shadow-sm mb-4"><div class="card-body">
+        <form method="POST" action="tindak_lanjut.php">
+            <div class="form-row">
+                <div class="form-group col-md-6">
+                    <label for="siswa_id">Siswa</label>
+                    <select id="siswa_id" name="siswa_id" class="form-control" required>
+                        <option value="">-- Pilih Siswa --</option>
                         <?php while ($s = $list_siswa->fetch_assoc()): ?>
-                            <option value="<?= $s['id']; ?>"><?= htmlspecialchars($s['nama']); ?> (NISN: <?= htmlspecialchars($s['nisn']); ?>)</option>
+                            <option value="<?= (int)$s['id'] ?>"><?= tl_h($s['nama']) ?> (NISN: <?= tl_h($s['nisn']) ?>)</option>
                         <?php endwhile; ?>
-                    <?php endif; ?>
-                </select>
-            </td>
-        </tr>
-        <tr>
-            <td><label for="tanggal">Tanggal Pertemuan/Proses</label></td>
-            <td>: <input type="date" id="tanggal" name="tanggal" value="<?= date('Y-m-d'); ?>" required></td>
-        </tr>
-        <tr>
-            <td><label for="status">Status Tindak Lanjut</label></td>
-            <td>: 
-                <select id="status" name="status" required>
-                    <option value="Belum Dipanggil">Belum Dipanggil</option>
-                    <option value="Proses Pembinaan">Proses Pembinaan BK</option>
-                    <option value="Orang Tua Hadir">Orang Tua/Wali Hadir</option>
-                    <option value="Selesai">Selesai / Kasus Ditutup</option>
-                </select>
-            </td>
-        </tr>
-        <tr>
-            <td><label for="catatan">Catatan / Hasil Pembinaan</label></td>
-            <td>: <textarea id="catatan" name="catatan" rows="3" cols="40" placeholder="Hasil diskusi dengan siswa/ortu..."></textarea></td>
-        </tr>
-        <tr>
-            <td></td>
-            <td><button type="submit">Simpan Tindak Lanjut</button></td>
-        </tr>
-    </table>
-</form>
-
-<hr>
-
-<h3>Riwayat Pembinaan & Tindak Lanjut</h3>
-<table border="1" cellpadding="8" cellspacing="0">
-    <thead>
-        <tr>
-            <th>No</th>
-            <th>Tanggal</th>
-            <th>Siswa</th>
-            <th>Status Tindak Lanjut</th>
-            <th>Catatan Pembinaan</th>
-        </tr>
-    </thead>
-    <tbody>
-        <?php if ($res_tl && $res_tl->num_rows > 0): ?>
-            <?php $no = 1; while ($row = $res_tl->fetch_assoc()): ?>
-                <tr>
-                    <td><?= $no++; ?></td>
-                    <td><?= date('d-m-Y', strtotime($row['tanggal_tindak_lanjut'])); ?></td>
-                    <td><?= htmlspecialchars($row['nama_siswa']); ?> (<?= htmlspecialchars($row['nisn']); ?>)</td>
-                    <td><b><?= htmlspecialchars($row['status']); ?></b></td>
-                    <td><?= htmlspecialchars($row['catatan'] ?? '-'); ?></td>
-                </tr>
-            <?php endwhile; ?>
-        <?php else: ?>
-            <tr>
-                <td colspan="5" align="center">Belum ada catatan tindak lanjut.</td>
-            </tr>
-        <?php endif; ?>
-    </tbody>
-</table>
-
+                    </select>
+                </div>
+                <div class="form-group col-md-3">
+                    <label for="tanggal">Tanggal</label>
+                    <input type="date" id="tanggal" name="tanggal" class="form-control" value="<?= date('Y-m-d') ?>" required>
+                </div>
+                <div class="form-group col-md-3">
+                    <label for="status">Status</label>
+                    <select id="status" name="status" class="form-control" required>
+                        <option value="Belum Dipanggil">Belum Dipanggil</option>
+                        <option value="Proses Pembinaan">Proses Pembinaan BK</option>
+                        <option value="Orang Tua Hadir">Orang Tua/Wali Hadir</option>
+                        <option value="Selesai">Selesai / Kasus Ditutup</option>
+                    </select>
+                </div>
+            </div>
+            <div class="form-group">
+                <label for="catatan">Catatan / Hasil Pembinaan</label>
+                <textarea id="catatan" name="catatan" class="form-control" rows="3"></textarea>
+            </div>
+            <button type="submit" class="btn btn-primary">Simpan Tindak Lanjut</button>
+        </form>
+    </div></div>
+    <div class="card shadow-sm"><div class="card-header"><strong>Riwayat Pembinaan & Tindak Lanjut</strong></div>
+    <div class="card-body table-responsive">
+        <table class="table table-bordered table-striped">
+            <thead class="thead-dark"><tr><th>No</th><th>Tanggal</th><th>Siswa</th><th>Status</th><th>Catatan Pembinaan</th></tr></thead>
+            <tbody>
+            <?php if ($res_tl->num_rows): $no=1; while ($row=$res_tl->fetch_assoc()): ?>
+                <tr><td><?= $no++ ?></td><td><?= tl_h(date('d-m-Y', strtotime($row['tanggal_tindak_lanjut']))) ?></td><td><?= tl_h($row['nama_siswa']) ?> (<?= tl_h($row['nisn']) ?>)</td><td><?= tl_h($row['status']) ?></td><td><?= nl2br(tl_h($row['catatan'] ?: '-')) ?></td></tr>
+            <?php endwhile; else: ?>
+                <tr><td colspan="5" class="text-center">Belum ada catatan tindak lanjut.</td></tr>
+            <?php endif; ?>
+            </tbody>
+        </table>
+    </div></div>
+</div>
 <?php include 'footer.php'; ?>

@@ -1,140 +1,109 @@
 <?php
-include 'koneksi.php';
-include 'header.php';
+require_once 'auth.php';
+require_once 'koneksi.php';
 
-if (isset($_POST['submit'])) {
-    $siswa_id       = $_POST['siswa_id'];
-    $kelas_id       = $_POST['kelas_id'];
-    $pelanggaran_id = $_POST['pelanggaran_id'];
-    $guru_id        = $_POST['guru_id'];
-    $tanggal        = $_POST['tanggal'];
-    $keterangan     = $_POST['keterangan'];
-    $tindakan       = $_POST['tindakan'];
-    $status         = $_POST['status'];
+mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
+$error = '';
+$success = '';
 
-    $q_siswa = mysqli_fetch_assoc(mysqli_query($koneksi, "SELECT nama FROM t_siswa WHERE id = '$siswa_id'"));
-    $q_kelas = mysqli_fetch_assoc(mysqli_query($koneksi, "SELECT nama FROM t_kelas WHERE id = '$kelas_id'"));
-    $q_guru  = mysqli_fetch_assoc(mysqli_query($koneksi, "SELECT nama FROM t_guru WHERE id = '$guru_id'"));
-    $q_peln  = mysqli_fetch_assoc(mysqli_query($koneksi, "SELECT nama, poin, pelanggaran_kategori_id FROM t_pelanggaran WHERE id = '$pelanggaran_id'"));
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit'])) {
+    try {
+        $siswa_id = (int)($_POST['siswa_id'] ?? 0);
+        $kelas_id = (int)($_POST['kelas_id'] ?? 0);
+        $pelanggaran_id = (int)($_POST['pelanggaran_id'] ?? 0);
+        $guru_id = (int)($_POST['guru_id'] ?? 0);
+        $tanggal = trim($_POST['tanggal'] ?? '');
+        $keterangan = trim($_POST['keterangan'] ?? '');
+        $tindakan = trim($_POST['tindakan'] ?? '');
+        $status = trim($_POST['status'] ?? '');
 
-    $nama_siswa       = $q_siswa['nama'] ?? '';
-    $nama_kelas       = $q_kelas['nama'] ?? '';
-    $nama_guru        = $q_guru['nama'] ?? '';
-    $nama_pelanggaran = $q_peln['nama'] ?? '';
-    $poin             = $q_peln['poin'] ?? 0;
-    $kategori_id      = $q_peln['pelanggaran_kategori_id'] ?? 1;
-    $q_tahun = mysqli_query($koneksi, "SELECT id FROM t_tahun_ajaran WHERE status_aktif = 1 LIMIT 1");
-    $tahun_aktif = $q_tahun ? mysqli_fetch_assoc($q_tahun) : null;
-    $tahun_ajaran_id = (int)($tahun_aktif['id'] ?? 0);
-    if ($tahun_ajaran_id === 0) {
-        $error = 'Belum ada tahun ajaran aktif. Aktifkan tahun ajaran terlebih dahulu.';
-    }
+        if ($siswa_id <= 0 || $kelas_id <= 0 || $pelanggaran_id <= 0 || $guru_id <= 0 ||
+            !preg_match('/^\\d{4}-\\d{2}-\\d{2}$/', $tanggal) ||
+            $keterangan === '' || $tindakan === '' ||
+            !in_array($status, ['Proses', 'Selesai'], true)) {
+            throw new Exception('Mohon isi semua data dengan benar.');
+        }
 
-    if ($tahun_ajaran_id > 0) {
-    $insert = "INSERT INTO t_pelanggaran_siswa 
-        (tahun_ajaran_id, siswa_id, nama_siswa, kelas_id, nama_kelas, pelanggaran_id, nama_pelanggaran, pelanggaran_kategori_id, guru_id, nama_guru, tanggal, keterangan, poin, tindakan, status) 
-        VALUES 
-        ('$tahun_ajaran_id', '$siswa_id', '$nama_siswa', '$kelas_id', '$nama_kelas', '$pelanggaran_id', '$nama_pelanggaran', '$kategori_id', '$guru_id', '$nama_guru', '$tanggal', '$keterangan', '$poin', '$tindakan', '$status')";
+        $get = $koneksi->prepare("SELECT nama FROM t_siswa WHERE id = ? AND status_aktif = 1");
+        $get->bind_param('i', $siswa_id); $get->execute();
+        $siswa = $get->get_result()->fetch_assoc(); $get->close();
+        if (!$siswa) throw new Exception('Siswa tidak ditemukan atau tidak aktif.');
 
-    if (mysqli_query($koneksi, $insert)) {
-        echo "<script>alert('Data berhasil disimpan!'); window.location='pelanggaran.php';</script>";
-        exit;
-    } else {
-        $error = "Gagal menyimpan data: " . mysqli_error($koneksi);
-    }
+        $get = $koneksi->prepare("SELECT nama FROM t_kelas WHERE id = ? AND status_aktif = 1");
+        $get->bind_param('i', $kelas_id); $get->execute();
+        $kelas = $get->get_result()->fetch_assoc(); $get->close();
+        if (!$kelas) throw new Exception('Kelas tidak ditemukan atau tidak aktif.');
+
+        $get = $koneksi->prepare("SELECT nama, poin, pelanggaran_kategori_id FROM t_pelanggaran WHERE id = ? AND status_aktif = 1");
+        $get->bind_param('i', $pelanggaran_id); $get->execute();
+        $pelanggaran = $get->get_result()->fetch_assoc(); $get->close();
+        if (!$pelanggaran) throw new Exception('Jenis pelanggaran tidak ditemukan atau tidak aktif.');
+
+        $get = $koneksi->prepare("SELECT nama FROM t_guru WHERE id = ? AND status_aktif = 1");
+        $get->bind_param('i', $guru_id); $get->execute();
+        $guru = $get->get_result()->fetch_assoc(); $get->close();
+        if (!$guru) throw new Exception('Guru tidak ditemukan atau tidak aktif.');
+
+        $get = $koneksi->query("SELECT id FROM t_tahun_ajaran WHERE status_aktif = 1 ORDER BY tanggal_mulai DESC, id DESC LIMIT 1");
+        $tahun = $get->fetch_assoc();
+        $tahun_ajaran_id = (int)($tahun['id'] ?? 0);
+        if ($tahun_ajaran_id <= 0) throw new Exception('Belum ada tahun ajaran aktif.');
+
+        $stmt = $koneksi->prepare("
+            INSERT INTO t_pelanggaran_siswa
+            (tahun_ajaran_id, siswa_id, nama_siswa, kelas_id, nama_kelas,
+             pelanggaran_id, nama_pelanggaran, pelanggaran_kategori_id,
+             guru_id, nama_guru, tanggal, keterangan, poin, tindakan, status)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ");
+        $poin = (int)$pelanggaran['poin'];
+        $kategori_id = (int)$pelanggaran['pelanggaran_kategori_id'];
+        $nama_siswa = $siswa['nama']; $nama_kelas = $kelas['nama'];
+        $nama_pelanggaran = $pelanggaran['nama']; $nama_guru = $guru['nama'];
+        $stmt->bind_param(
+            'iisisisiisssiss',
+            $tahun_ajaran_id, $siswa_id, $nama_siswa, $kelas_id, $nama_kelas,
+            $pelanggaran_id, $nama_pelanggaran, $kategori_id, $guru_id,
+            $nama_guru, $tanggal, $keterangan, $poin, $tindakan, $status
+        );
+        $stmt->execute();
+        $stmt->close();
+        $success = 'Data pelanggaran berhasil disimpan.';
+    } catch (Throwable $e) {
+        $error = $e->getMessage();
     }
 }
+
+function tp_h($v) { return htmlspecialchars((string)($v ?? ''), ENT_QUOTES, 'UTF-8'); }
+$siswa_list = $koneksi->query("SELECT id, nis, nama FROM t_siswa WHERE status_aktif = 1 ORDER BY nama");
+$kelas_list = $koneksi->query("SELECT id, nama FROM t_kelas WHERE status_aktif = 1 ORDER BY nama");
+$pelanggaran_list = $koneksi->query("SELECT id, kode, nama, poin FROM t_pelanggaran WHERE status_aktif = 1 ORDER BY nama");
+$guru_list = $koneksi->query("SELECT id, nama FROM t_guru WHERE status_aktif = 1 ORDER BY nama");
+$tahun_result = $koneksi->query("SELECT nama FROM t_tahun_ajaran WHERE status_aktif = 1 ORDER BY tanggal_mulai DESC, id DESC LIMIT 1");
+$tahun_tampil = $tahun_result->fetch_assoc();
+
+include 'header.php';
 ?>
-
-<h3>Form Input Pelanggaran Siswa</h3>
-<?php
-$q_tahun_tampil = mysqli_query($koneksi, "SELECT nama FROM t_tahun_ajaran WHERE status_aktif = 1 LIMIT 1");
-$tahun_tampil = $q_tahun_tampil ? mysqli_fetch_assoc($q_tahun_tampil) : null;
-?>
-<p><strong>Tahun Ajaran Aktif:</strong> <?= htmlspecialchars($tahun_tampil['nama'] ?? 'Belum ditentukan') ?></p>
-
-<?php if (isset($error)) echo "<p style='color:red;'>{$error}</p>"; ?>
-
-<form method="POST" action="">
-    <p>
-        <label>Tanggal Tangkap/Kejadian:</label><br>
-        <input type="date" name="tanggal" value="<?= date('Y-m-d') ?>" required>
-    </p>
-
-    <p>
-        <label>Pilih Siswa:</label><br>
-        <select name="siswa_id" required>
-            <option value="">-- Pilih Siswa --</option>
-            <?php
-            $siswa = mysqli_query($koneksi, "SELECT * FROM t_siswa WHERE status_aktif = 1");
-            while ($s = mysqli_fetch_assoc($siswa)) {
-                echo "<option value='{$s['id']}'>{$s['nis']} - {$s['nama']}</option>";
-            }
-            ?>
-        </select>
-    </p>
-
-    <p>
-        <label>Pilih Kelas:</label><br>
-        <select name="kelas_id" required>
-            <option value="">-- Pilih Kelas --</option>
-            <?php
-            $kelas = mysqli_query($koneksi, "SELECT * FROM t_kelas WHERE status_aktif = 1");
-            while ($k = mysqli_fetch_assoc($kelas)) {
-                echo "<option value='{$k['id']}'>{$k['nama']}</option>";
-            }
-            ?>
-        </select>
-    </p>
-
-    <p>
-        <label>Jenis Pelanggaran:</label><br>
-        <select name="pelanggaran_id" required>
-            <option value="">-- Pilih Jenis Pelanggaran --</option>
-            <?php
-            $pelanggaran = mysqli_query($koneksi, "SELECT * FROM t_pelanggaran WHERE status_aktif = 1");
-            while ($p = mysqli_fetch_assoc($pelanggaran)) {
-                echo "<option value='{$p['id']}'>{$p['kode']} - {$p['nama']} ({$p['poin']} Poin)</option>";
-            }
-            ?>
-        </select>
-    </p>
-
-    <p>
-        <label>Guru Pelapor:</label><br>
-        <select name="guru_id" required>
-            <option value="">-- Pilih Guru --</option>
-            <?php
-            $guru = mysqli_query($koneksi, "SELECT * FROM t_guru WHERE status_aktif = 1");
-            while ($g = mysqli_fetch_assoc($guru)) {
-                echo "<option value='{$g['id']}'>{$g['nama']}</option>";
-            }
-            ?>
-        </select>
-    </p>
-
-    <p>
-        <label>Keterangan / Kronologi:</label><br>
-        <textarea name="keterangan" rows="3" cols="50" required></textarea>
-    </p>
-
-    <p>
-        <label>Tindakan Pembinaan:</label><br>
-        <textarea name="tindakan" rows="2" cols="50" required></textarea>
-    </p>
-
-    <p>
-        <label>Status Pembinaan:</label><br>
-        <select name="status" required>
-            <option value="Proses">Proses</option>
-            <option value="Selesai">Selesai</option>
-        </select>
-    </p>
-
-    <p>
-        <button type="submit" name="submit">Simpan Data</button>
-        <a href="pelanggaran.php">Batal</a>
-    </p>
-</form>
-
+<div class="container-fluid py-3">
+    <h3>Form Input Pelanggaran Siswa</h3>
+    <p><strong>Tahun Ajaran Aktif:</strong> <?= tp_h($tahun_tampil['nama'] ?? 'Belum ditentukan') ?></p>
+    <?php if ($error): ?><div class="alert alert-danger"><?= tp_h($error) ?></div><?php endif; ?>
+    <?php if ($success): ?><div class="alert alert-success"><?= tp_h($success) ?></div><?php endif; ?>
+    <div class="card shadow-sm"><div class="card-body">
+        <form method="POST" action="tambah_pelanggaran.php">
+            <div class="form-row">
+                <div class="form-group col-md-4"><label>Tanggal Kejadian</label><input type="date" name="tanggal" class="form-control" value="<?= date('Y-m-d') ?>" required></div>
+                <div class="form-group col-md-4"><label>Siswa</label><select name="siswa_id" class="form-control" required><option value="">-- Pilih Siswa --</option><?php while($r=$siswa_list->fetch_assoc()): ?><option value="<?= (int)$r['id'] ?>"><?= tp_h($r['nis'].' - '.$r['nama']) ?></option><?php endwhile; ?></select></div>
+                <div class="form-group col-md-4"><label>Kelas</label><select name="kelas_id" class="form-control" required><option value="">-- Pilih Kelas --</option><?php while($r=$kelas_list->fetch_assoc()): ?><option value="<?= (int)$r['id'] ?>"><?= tp_h($r['nama']) ?></option><?php endwhile; ?></select></div>
+                <div class="form-group col-md-6"><label>Jenis Pelanggaran</label><select name="pelanggaran_id" class="form-control" required><option value="">-- Pilih Pelanggaran --</option><?php while($r=$pelanggaran_list->fetch_assoc()): ?><option value="<?= (int)$r['id'] ?>"><?= tp_h($r['kode'].' - '.$r['nama'].' ('.$r['poin'].' poin)') ?></option><?php endwhile; ?></select></div>
+                <div class="form-group col-md-6"><label>Guru Pelapor</label><select name="guru_id" class="form-control" required><option value="">-- Pilih Guru --</option><?php while($r=$guru_list->fetch_assoc()): ?><option value="<?= (int)$r['id'] ?>"><?= tp_h($r['nama']) ?></option><?php endwhile; ?></select></div>
+                <div class="form-group col-12"><label>Keterangan / Kronologi</label><textarea name="keterangan" class="form-control" rows="3" required></textarea></div>
+                <div class="form-group col-12"><label>Tindakan Pembinaan</label><textarea name="tindakan" class="form-control" rows="2" required></textarea></div>
+                <div class="form-group col-md-4"><label>Status Pembinaan</label><select name="status" class="form-control" required><option value="Proses">Proses</option><option value="Selesai">Selesai</option></select></div>
+            </div>
+            <button type="submit" name="submit" class="btn btn-primary">Simpan Data</button>
+            <a href="pelanggaran.php" class="btn btn-secondary">Batal</a>
+        </form>
+    </div></div>
+</div>
 <?php include 'footer.php'; ?>

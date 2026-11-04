@@ -2,6 +2,18 @@
 require_once 'auth.php';
 require_once 'koneksi.php';
 
+mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
+$koneksi->query("
+    CREATE TABLE IF NOT EXISTS t_log_aktivitas (
+        id INT AUTO_INCREMENT PRIMARY KEY,
+        user_id INT NULL,
+        nama_user VARCHAR(150) NOT NULL,
+        aktivitas TEXT NOT NULL,
+        waktu TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+        INDEX idx_log_waktu (waktu)
+    ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
+");
+
 include 'header.php';
 
 // Fetch Log Aktivitas

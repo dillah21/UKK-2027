@@ -1,351 +1,663 @@
 <?php
-if (session_status() === PHP_SESSION_NONE) { session_start(); }
-ini_set('display_errors', '1'); error_reporting(E_ALL);
+if (session_status() === PHP_SESSION_NONE) {
+    session_start();
+}
 
 require_once 'auth.php';
 require_once 'koneksi.php';
 
-$pesan_sukses = "";
-$pesan_error = "";
+$pesan_sukses = '';
+$pesan_error = '';
 
-// 1. Proses Tambah Siswa Baru
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['tambah_siswa'])) {
-    $nis = trim($_POST['nis'] ?? '');
+function e($value) {
+    return htmlspecialchars((string)($value ?? ''), ENT_QUOTES, 'UTF-8');
+}
+
+/*
+|--------------------------------------------------------------------------
+| FORMAT NAMA KELAS
+|--------------------------------------------------------------------------
+| Contoh data lama:
+| tingkat = 11
+| jurusan = TKR
+| nama    = 11 MPLB 10
+|
+| Tampilan: 11 TKR 10
+*/
+function formatKelas($tingkat, $jurusan, $nama) {
+    $tingkat = trim((string)$tingkat);
+    $jurusan = trim((string)$jurusan);
+    $nama = trim((string)$nama);
+
+    // Ambil angka rombel terakhir dari nama kelas lama.
+    if (preg_match('/(\d+)\s*$/', $nama, $matches)) {
+        $rombel = $matches[1];
+    } else {
+        $rombel = '';
+    }
+
+    $bagian = array_filter(
+        [$tingkat, $jurusan, $rombel],
+        function ($value) {
+            return $value !== '';
+        }
+    );
+
+    return implode(' ', $bagian);
+}
+
+// Ambil tahun ajaran aktif
+function getTahunAjaranAktif($koneksi) {
+    $result = $koneksi->query(
+        "SELECT id FROM t_tahun_ajaran
+         WHERE status_aktif = 1
+         ORDER BY tanggal_mulai DESC, id DESC
+         LIMIT 1"
+    );
+
+    if ($result && $result->num_rows > 0) {
+        return (int)$result->fetch_assoc()['id'];
+    }
+
+    return 0;
+}
+
+// ======================================================
+// TAMBAH SISWA
+// ======================================================
+if ($_SERVER['REQUEST_METHOD'] === 'POST'
+    && isset($_POST['tambah_siswa'])) {
+
+    $nis_raw = trim($_POST['nis'] ?? '');
+    $nis = preg_replace('/\\D+/', '', $nis_raw);
     $nama = trim($_POST['nama'] ?? '');
-    $kelas_id = intval($_POST['kelas_id'] ?? 0);
-    $jk = trim($_POST['jk'] ?? 'L');
+    $kelas_id = (int)($_POST['kelas_id'] ?? 0);
+    $jk = $_POST['jk'] ?? 'L';
 
-    if (!empty($nama)) {
-        $nisn_dummy = '00' . rand(10000000, 99999999);
-        $tgl_lahir_dummy = '2008-01-01';
-        $alamat_dummy = '-';
+    if (strlen($nis_raw) > 15) {
+        $pesan_error = 'NIS maksimal 15 digit!';
+    } elseif ($nama === '') {
+        $pesan_error = 'Nama siswa tidak boleh kosong!';
+    } elseif (!in_array($jk, ['L', 'P'], true)) {
+        $pesan_error = 'Jenis kelamin tidak valid!';
+    } else {
+        $nisn = '00' . random_int(10000000, 99999999);
+        $tanggal_lahir = '2008-01-01';
+        $alamat = '-';
         $status_aktif = 1;
 
-        $stmt = $koneksi->prepare("INSERT INTO t_siswa (nis, nisn, nama, jenis_kelamin, tanggal_lahir, alamat, status_aktif) VALUES (?, ?, ?, ?, ?, ?, ?)");
-        $stmt->bind_param("ssssssi", $nis, $nisn_dummy, $nama, $jk, $tgl_lahir_dummy, $alamat_dummy, $status_aktif);
-        
+        $stmt = $koneksi->prepare(
+            "INSERT INTO t_siswa
+            (nis, nisn, nama, jenis_kelamin, tanggal_lahir,
+             alamat, status_aktif)
+            VALUES (?, ?, ?, ?, ?, ?, ?)"
+        );
+
+        $stmt->bind_param(
+            'ssssssi',
+            $nis,
+            $nisn,
+            $nama,
+            $jk,
+            $tanggal_lahir,
+            $alamat,
+            $status_aktif
+        );
+
         if ($stmt->execute()) {
             $siswa_id = $koneksi->insert_id;
-            
+
             if ($kelas_id > 0) {
-                $ta_q = $koneksi->query("SELECT id FROM t_tahun_ajaran WHERE status_aktif = 1 LIMIT 1");
-                $ta_id = ($ta_q && $ta_q->num_rows > 0) ? $ta_q->fetch_assoc()['id'] : 1;
-                
-                $tgl_mulai = date('Y-m-d');
-                $tgl_selesai = date('Y-m-d', strtotime('+1 year'));
-                
-                $stmt_ks = $koneksi->prepare("INSERT INTO t_kelas_siswa (siswa_id, tahun_ajaran_id, kelas_id, tanggal_mulai, tanggal_selesai, status_aktif) VALUES (?, ?, ?, ?, ?, ?)");
-                $stmt_ks->bind_param("iiissii", $siswa_id, $ta_id, $kelas_id, $tgl_mulai, $tgl_selesai, $status_aktif);
-                $stmt_ks->execute();
-                $stmt_ks->close();
+                $ta_id = getTahunAjaranAktif($koneksi);
+                $mulai = date('Y-m-d');
+                $selesai = date('Y-m-d', strtotime('+1 year'));
+
+                $cek = $koneksi->prepare(
+                    "SELECT id FROM t_kelas WHERE id = ?"
+                );
+                $cek->bind_param('i', $kelas_id);
+                $cek->execute();
+                $valid = $cek->get_result()->num_rows > 0;
+                $cek->close();
+
+                if ($valid) {
+                    $status_relasi = 1;
+
+                    $relasi = $koneksi->prepare(
+                        "INSERT INTO t_kelas_siswa
+                        (siswa_id, tahun_ajaran_id, kelas_id,
+                         tanggal_mulai, tanggal_selesai, status_aktif)
+                        VALUES (?, ?, ?, ?, ?, ?)"
+                    );
+
+                    $relasi->bind_param(
+                        'iiissi',
+                        $siswa_id,
+                        $ta_id,
+                        $kelas_id,
+                        $mulai,
+                        $selesai,
+                        $status_relasi
+                    );
+
+                    if (!$relasi->execute()) {
+                        $pesan_error =
+                            'Siswa tersimpan, tetapi relasi kelas gagal dibuat.';
+                    }
+
+                    $relasi->close();
+                }
             }
-            
-            $pesan_sukses = "Data siswa berhasil ditambahkan!";
+
+            if ($pesan_error === '') {
+                $pesan_sukses = 'Data siswa berhasil ditambahkan!';
+            }
         } else {
-            $pesan_error = "Gagal menyimpan data: " . $koneksi->error;
+            $pesan_error = 'Gagal menyimpan data siswa: ' . $stmt->error;
         }
+
         $stmt->close();
-    } else {
-        $pesan_error = "Nama siswa tidak boleh kosong!";
     }
 }
 
-// 2. Proses Edit Siswa
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_siswa'])) {
-    $id = intval($_POST['id'] ?? 0);
-    $nis = trim($_POST['nis'] ?? '');
-    $nama = trim($_POST['nama'] ?? '');
-    $kelas_id = intval($_POST['kelas_id'] ?? 0);
-    $jk = trim($_POST['jk'] ?? 'L');
+// ======================================================
+// EDIT SISWA
+// ======================================================
+if ($_SERVER['REQUEST_METHOD'] === 'POST'
+    && isset($_POST['edit_siswa'])) {
 
-    if ($id > 0 && !empty($nama)) {
-        $stmt = $koneksi->prepare("UPDATE t_siswa SET nis = ?, nama = ?, jenis_kelamin = ? WHERE id = ?");
-        $stmt->bind_param("sssi", $nis, $nama, $jk, $id);
-        
+    $id = (int)($_POST['id'] ?? 0);
+    $nis_raw = trim($_POST['nis'] ?? '');
+    $nis = preg_replace('/\\D+/', '', $nis_raw);
+    $nama = trim($_POST['nama'] ?? '');
+    $kelas_id = (int)($_POST['kelas_id'] ?? 0);
+    $jk = $_POST['jk'] ?? 'L';
+
+    if ($id <= 0 || $nama === '' || strlen($nis_raw) > 15) {
+        $pesan_error = strlen($nis_raw) > 15 ? 'NIS maksimal 15 digit!' : 'Data siswa tidak valid!';
+    } elseif (!in_array($jk, ['L', 'P'], true)) {
+        $pesan_error = 'Jenis kelamin tidak valid!';
+    } else {
+        $stmt = $koneksi->prepare(
+            "UPDATE t_siswa
+             SET nis = ?, nama = ?, jenis_kelamin = ?
+             WHERE id = ?"
+        );
+
+        $stmt->bind_param('sssi', $nis, $nama, $jk, $id);
+
         if ($stmt->execute()) {
             $stmt->close();
 
-            // Update atau Insert relasi kelas di t_kelas_siswa
-            $cek_ks = $koneksi->query("SELECT id FROM t_kelas_siswa WHERE siswa_id = $id AND status_aktif = 1");
-            if ($cek_ks && $cek_ks->num_rows > 0) {
-                if ($kelas_id > 0) {
-                    $stmt_up = $koneksi->prepare("UPDATE t_kelas_siswa SET kelas_id = ? WHERE siswa_id = ? AND status_aktif = 1");
-                    $stmt_up->bind_param("ii", $kelas_id, $id);
-                    $stmt_up->execute();
-                    $stmt_up->close();
+            if ($kelas_id > 0) {
+                $cek = $koneksi->prepare(
+                    "SELECT id FROM t_kelas WHERE id = ?"
+                );
+                $cek->bind_param('i', $kelas_id);
+                $cek->execute();
+                $kelas_valid = $cek->get_result()->num_rows > 0;
+                $cek->close();
+
+                if (!$kelas_valid) {
+                    $pesan_error = 'Kelas tidak ditemukan!';
                 } else {
-                    $koneksi->query("UPDATE t_kelas_siswa SET status_aktif = 0 WHERE siswa_id = $id AND status_aktif = 1");
+                    $cek_relasi = $koneksi->prepare(
+                        "SELECT id FROM t_kelas_siswa
+                         WHERE siswa_id = ? AND status_aktif = 1
+                         LIMIT 1"
+                    );
+                    $cek_relasi->bind_param('i', $id);
+                    $cek_relasi->execute();
+                    $hasil_relasi = $cek_relasi->get_result();
+                    $cek_relasi->close();
+
+                    if ($hasil_relasi->num_rows > 0) {
+                        $relasi_id = (int)$hasil_relasi->fetch_assoc()['id'];
+
+                        $update = $koneksi->prepare(
+                            "UPDATE t_kelas_siswa
+                             SET kelas_id = ?
+                             WHERE id = ?"
+                        );
+                        $update->bind_param('ii', $kelas_id, $relasi_id);
+                        $update->execute();
+                        $update->close();
+                    } else {
+                        $ta_id = getTahunAjaranAktif($koneksi);
+                        $mulai = date('Y-m-d');
+                        $selesai = date('Y-m-d', strtotime('+1 year'));
+                        $status_relasi = 1;
+
+                        $insert = $koneksi->prepare(
+                            "INSERT INTO t_kelas_siswa
+                            (siswa_id, tahun_ajaran_id, kelas_id,
+                             tanggal_mulai, tanggal_selesai, status_aktif)
+                            VALUES (?, ?, ?, ?, ?, ?)"
+                        );
+
+                        $insert->bind_param(
+                            'iiissi',
+                            $id,
+                            $ta_id,
+                            $kelas_id,
+                            $mulai,
+                            $selesai,
+                            $status_relasi
+                        );
+
+                        $insert->execute();
+                        $insert->close();
+                    }
+
+                    $pesan_sukses = 'Data siswa berhasil diperbarui!';
                 }
-            } else if ($kelas_id > 0) {
-                $ta_q = $koneksi->query("SELECT id FROM t_tahun_ajaran WHERE status_aktif = 1 LIMIT 1");
-                $ta_id = ($ta_q && $ta_q->num_rows > 0) ? $ta_q->fetch_assoc()['id'] : 1;
-                $tgl_mulai = date('Y-m-d');
-                $tgl_selesai = date('Y-m-d', strtotime('+1 year'));
-                $status_aktif = 1;
+            } else {
+                $nonaktif = $koneksi->prepare(
+                    "UPDATE t_kelas_siswa
+                     SET status_aktif = 0
+                     WHERE siswa_id = ? AND status_aktif = 1"
+                );
+                $nonaktif->bind_param('i', $id);
+                $nonaktif->execute();
+                $nonaktif->close();
 
-                $stmt_ins = $koneksi->prepare("INSERT INTO t_kelas_siswa (siswa_id, tahun_ajaran_id, kelas_id, tanggal_mulai, tanggal_selesai, status_aktif) VALUES (?, ?, ?, ?, ?, ?)");
-                $stmt_ins->bind_param("iiissii", $id, $ta_id, $kelas_id, $tgl_mulai, $tgl_selesai, $status_aktif);
-                $stmt_ins->execute();
-                $stmt_ins->close();
+                $pesan_sukses = 'Data siswa berhasil diperbarui!';
             }
-
-            $pesan_sukses = "Data siswa berhasil diperbarui!";
         } else {
-            $pesan_error = "Gagal memperbarui data: " . $koneksi->error;
+            $pesan_error = 'Gagal memperbarui data siswa.';
+            $stmt->close();
         }
-    } else {
-        $pesan_error = "Nama siswa tidak boleh kosong!";
     }
 }
 
-// 3. Proses Hapus Siswa
-if (isset($_GET['action']) && $_GET['action'] === 'hapus' && isset($_GET['id'])) {
-    $id_hapus = intval($_GET['id']);
+// ======================================================
+// HAPUS SISWA
+// ======================================================
+if (isset($_GET['action'], $_GET['id'])
+    && $_GET['action'] === 'hapus') {
+
+    $id_hapus = (int)$_GET['id'];
+
     if ($id_hapus > 0) {
-        // Hapus relasi kelas dan data siswa
-        @$koneksi->query("DELETE FROM t_kelas_siswa WHERE siswa_id = $id_hapus");
-        if ($koneksi->query("DELETE FROM t_siswa WHERE id = $id_hapus")) {
-            $pesan_sukses = "Data siswa berhasil dihapus!";
+        $stmt = $koneksi->prepare(
+            "DELETE FROM t_kelas_siswa WHERE siswa_id = ?"
+        );
+        $stmt->bind_param('i', $id_hapus);
+        $stmt->execute();
+        $stmt->close();
+
+        $stmt = $koneksi->prepare(
+            "DELETE FROM t_siswa WHERE id = ?"
+        );
+        $stmt->bind_param('i', $id_hapus);
+
+        if ($stmt->execute()) {
+            $pesan_sukses = 'Data siswa berhasil dihapus!';
         } else {
-            $pesan_error = "Gagal menghapus data: " . $koneksi->error;
+            $pesan_error = 'Gagal menghapus data siswa: ' . $stmt->error;
         }
+
+        $stmt->close();
     }
 }
 
-// Ambil Pilihan Kelas untuk Dropdown
-$list_kelas = $koneksi->query("SELECT * FROM t_kelas ORDER BY nama ASC");
+// ======================================================
+// AMBIL PILIHAN KELAS
+// ======================================================
+$list_kelas = $koneksi->query(
+    "SELECT id, nama, tingkat, jurusan
+     FROM t_kelas
+     ORDER BY tingkat, jurusan, nama"
+);
 
-// Ambil Data Siswa beserta Kelasnya menggunakan JOIN lewat t_kelas_siswa
-$result_siswa = $koneksi->query("
-    SELECT s.*, k.id AS kelas_id, k.nama AS nama_kelas 
-    FROM t_siswa s 
-    LEFT JOIN t_kelas_siswa ks ON s.id = ks.siswa_id AND ks.status_aktif = 1
-    LEFT JOIN t_kelas k ON ks.kelas_id = k.id 
-    ORDER BY s.id DESC
-");
+// ======================================================
+// AMBIL SISWA DAN RELASI KELAS
+// ======================================================
+$result_siswa = $koneksi->query(
+    "SELECT
+        s.*,
+        k.id AS kelas_id,
+        k.nama AS nama_kelas,
+        k.tingkat AS tingkat_kelas,
+        k.jurusan AS jurusan_kelas
+     FROM t_siswa s
+     LEFT JOIN t_kelas_siswa ks
+        ON s.id = ks.siswa_id
+        AND ks.status_aktif = 1
+     LEFT JOIN t_kelas k
+        ON ks.kelas_id = k.id
+     ORDER BY s.id DESC"
+);
 
-// Panggil Header Terpusat
 include 'header.php';
 ?>
 
-            <div class="d-flex justify-content-between align-items-center pb-2 mb-3 border-bottom">
-                <h1 class="h2">Manajemen Data Siswa</h1>
-                <button type="button" class="btn btn-primary btn-sm" data-toggle="modal" data-target="#modalTambahSiswa">
-                    <i class="fas fa-plus mr-1"></i> Tambah Siswa Baru
-                </button>
-            </div>
+<div class="d-flex justify-content-between align-items-center pb-2 mb-3 border-bottom">
+    <h1 class="h2">Manajemen Data Siswa</h1>
+    <button type="button" class="btn btn-primary btn-sm"
+            data-toggle="modal" data-target="#modalTambahSiswa">
+        <i class="fas fa-plus mr-1"></i> Tambah Siswa Baru
+    </button>
+</div>
 
-            <?php if (!empty($pesan_sukses)): ?>
-                <div class="alert alert-success alert-dismissible fade show" role="alert">
-                    <?= $pesan_sukses; ?>
-                    <button type="button" class="close" data-dismiss="alert" aria-label="Close"><span aria-hidden="true">&times;</span></button>
-                </div>
-            <?php endif; ?>
+<?php if ($pesan_sukses !== ''): ?>
+    <div class="alert alert-success alert-dismissible fade show">
+        <?= e($pesan_sukses) ?>
+        <button type="button" class="close" data-dismiss="alert">
+            <span>&times;</span>
+        </button>
+    </div>
+<?php endif; ?>
 
-            <?php if (!empty($pesan_error)): ?>
-                <div class="alert alert-danger alert-dismissible fade show" role="alert">
-                    <?= $pesan_error; ?>
-                    <button type="button" class="close" data-dismiss="alert" aria-label="Close"><span aria-hidden="true">&times;</span></button>
-                </div>
-            <?php endif; ?>
+<?php if ($pesan_error !== ''): ?>
+    <div class="alert alert-danger alert-dismissible fade show">
+        <?= e($pesan_error) ?>
+        <button type="button" class="close" data-dismiss="alert">
+            <span>&times;</span>
+        </button>
+    </div>
+<?php endif; ?>
 
-            <!-- Tabel Data Siswa -->
-            <div class="card shadow-sm">
-                <div class="card-header bg-white">
-                    <h5 class="mb-0">Daftar Siswa Terdaftar</h5>
-                </div>
-                <div class="card-body">
-                    <div class="table-responsive">
-                        <table id="tabelSiswa" class="table table-striped table-bordered mb-0" style="width:100%;">
-                            <thead class="thead-dark text-center">
-                                <tr>
-                                    <th style="width: 5%;">No</th>
-                                    <th style="width: 20%;">NIS / No Induk</th>
-                                    <th>Nama Siswa</th>
-                                    <th>Kelas</th>
-                                    <th style="width: 10%;">L/P</th>
-                                    <th style="width: 15%;">Aksi</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <?php if ($result_siswa && $result_siswa->num_rows > 0): $no = 1; while ($row = $result_siswa->fetch_assoc()): 
-                                    $id = $row['id'];
-                                    $nis = htmlspecialchars($row['nis'] ?? '');
-                                    $nama = htmlspecialchars($row['nama'] ?? '');
-                                    $nama_kelas = htmlspecialchars($row['nama_kelas'] ?? '-');
-                                    $kelas_id_aktif = $row['kelas_id'] ?? 0;
-                                    $jk = $row['jenis_kelamin'] ?? 'L';
-                                ?>
-                                    <tr>
-                                        <td class="text-center"><?= $no++; ?></td>
-                                        <td class="text-center"><?= !empty($nis) ? $nis : '-'; ?></td>
-                                        <td><?= $nama; ?></td>
-                                        <td class="text-center"><?= $nama_kelas; ?></td>
-                                        <td class="text-center"><?= $jk; ?></td>
-                                        <td class="text-center">
-                                            <button class="btn btn-warning btn-sm" data-toggle="modal" data-target="#editSiswa<?= $id; ?>" title="Edit"><i class="fas fa-edit"></i></button>
-                                            <button class="btn btn-danger btn-sm" data-toggle="modal" data-target="#hapusSiswa<?= $id; ?>" title="Hapus"><i class="fas fa-trash"></i></button>
-                                        </td>
-                                    </tr>
+<div class="card shadow-sm">
+    <div class="card-header bg-white">
+        <h5 class="mb-0">Daftar Siswa Terdaftar</h5>
+    </div>
 
-                                    <!-- MODAL EDIT SISWA -->
-                                    <div class="modal fade" id="editSiswa<?= $id; ?>" tabindex="-1" role="dialog" aria-hidden="true">
-                                        <div class="modal-dialog" role="document">
-                                            <form method="POST" action="siswa.php" class="modal-content">
-                                                <input type="hidden" name="id" value="<?= $id; ?>">
-                                                <div class="modal-header bg-warning text-dark">
-                                                    <h5 class="modal-title font-weight-bold"><i class="fas fa-edit mr-2"></i> Edit Data Siswa</h5>
-                                                    <button type="button" class="close" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
-                                                </div>
-                                                <div class="modal-body text-left">
-                                                    <div class="form-group">
-                                                        <label class="font-weight-bold">NIS / No Induk</label>
-                                                        <input type="text" class="form-control" name="nis" value="<?= $nis; ?>">
-                                                    </div>
-                                                    <div class="form-group">
-                                                        <label class="font-weight-bold">Nama Lengkap Siswa <span class="text-danger">*</span></label>
-                                                        <input type="text" class="form-control" name="nama" required value="<?= $nama; ?>">
-                                                    </div>
-                                                    <div class="form-group">
-                                                        <label class="font-weight-bold">Kelas</label>
-                                                        <select class="form-control" name="kelas_id">
-                                                            <option value="0">-- Pilih Kelas --</option>
-                                                            <?php 
-                                                            // Reset pointer atau query ulang list kelas untuk setiap modal
-                                                            $list_kelas_m = $koneksi->query("SELECT * FROM t_kelas ORDER BY nama ASC");
-                                                            if ($list_kelas_m && $list_kelas_m->num_rows > 0): 
-                                                                while ($kls = $list_kelas_m->fetch_assoc()): 
-                                                            ?>
-                                                                    <option value="<?= $kls['id']; ?>" <?= ($kelas_id_aktif == $kls['id']) ? 'selected' : ''; ?>>
-                                                                        <?= htmlspecialchars($kls['nama']); ?>
-                                                                    </option>
-                                                            <?php 
-                                                                endwhile; 
-                                                            endif; 
-                                                            ?>
-                                                        </select>
-                                                    </div>
-                                                    <div class="form-group">
-                                                        <label class="font-weight-bold">Jenis Kelamin</label>
-                                                        <select class="form-control" name="jk">
-                                                            <option value="L" <?= ($jk == 'L') ? 'selected' : ''; ?>>Laki-laki</option>
-                                                            <option value="P" <?= ($jk == 'P') ? 'selected' : ''; ?>>Perempuan</option>
-                                                        </select>
-                                                    </div>
-                                                </div>
-                                                <div class="modal-footer">
-                                                    <button type="button" class="btn btn-secondary btn-sm" data-dismiss="modal">Batal</button>
-                                                    <button type="submit" name="edit_siswa" class="btn btn-warning btn-sm font-weight-bold"><i class="fas fa-save mr-1"></i> Simpan</button>
-                                                </div>
-                                            </form>
+    <div class="card-body">
+        <div class="table-responsive">
+            <table id="tabelSiswa"
+                   class="table table-striped table-bordered mb-0"
+                   style="width:100%">
+                <thead class="thead-dark text-center">
+                    <tr>
+                        <th>No</th>
+                        <th>NIS / No Induk</th>
+                        <th>Nama Siswa</th>
+                        <th>Kelas</th>
+                        <th>L/P</th>
+                        <th>Aksi</th>
+                    </tr>
+                </thead>
+                <tbody>
+                <?php if ($result_siswa): ?>
+                    <?php $no = 1; ?>
+                    <?php while ($row = $result_siswa->fetch_assoc()): ?>
+                        <?php
+                        $id = (int)$row['id'];
+                        $nis = $row['nis'] ?? '';
+                        $nama = $row['nama'] ?? '';
+                        $jk = $row['jenis_kelamin'] ?? 'L';
+                        $kelas_id_aktif = (int)($row['kelas_id'] ?? 0);
+
+                        $label_kelas = '-';
+
+                        if ($kelas_id_aktif > 0) {
+                            $label_kelas = formatKelas(
+                                $row['tingkat_kelas'] ?? '',
+                                $row['jurusan_kelas'] ?? '',
+                                $row['nama_kelas'] ?? ''
+                            );
+                        }
+                        ?>
+
+                        <tr>
+                            <td class="text-center"><?= $no++ ?></td>
+                            <td class="text-center"><?= e($nis ?: '-') ?></td>
+                            <td><?= e($nama) ?></td>
+                            <td class="text-center"><?= e($label_kelas) ?></td>
+                            <td class="text-center"><?= e($jk) ?></td>
+                            <td class="text-center">
+                                <button class="btn btn-warning btn-sm"
+                                        data-toggle="modal"
+                                        data-target="#editSiswa<?= $id ?>">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+
+                                <button class="btn btn-danger btn-sm"
+                                        data-toggle="modal"
+                                        data-target="#hapusSiswa<?= $id ?>">
+                                    <i class="fas fa-trash"></i>
+                                </button>
+                            </td>
+                        </tr>
+
+                        <!-- MODAL EDIT SISWA -->
+                        <div class="modal fade" id="editSiswa<?= $id ?>"
+                             tabindex="-1" role="dialog">
+                            <div class="modal-dialog" role="document">
+                                <form method="POST" action="siswa.php"
+                                      class="modal-content">
+
+                                    <input type="hidden" name="id"
+                                           value="<?= $id ?>">
+
+                                    <div class="modal-header bg-warning">
+                                        <h5 class="modal-title">Edit Data Siswa</h5>
+                                        <button type="button" class="close"
+                                                data-dismiss="modal">
+                                            <span>&times;</span>
+                                        </button>
+                                    </div>
+
+                                    <div class="modal-body">
+                                        <div class="form-group">
+                                            <label>NIS / No Induk</label>
+                                            <input type="text" name="nis"
+                                                   class="form-control"
+                                                   value="<?= e($nis) ?>" maxlength="15" inputmode="numeric" pattern="[0-9]{0,15}" title="Maksimal 15 digit">
+                                        </div>
+
+                                        <div class="form-group">
+                                            <label>Nama Lengkap Siswa</label>
+                                            <input type="text" name="nama"
+                                                   class="form-control"
+                                                   required
+                                                   value="<?= e($nama) ?>">
+                                        </div>
+
+                                        <div class="form-group">
+                                            <label>Kelas</label>
+                                            <select name="kelas_id"
+                                                    class="form-control">
+                                                <option value="0">-- Pilih Kelas --</option>
+
+                                                <?php
+                                                $kelas_edit = $koneksi->query(
+                                                    "SELECT id, nama, tingkat, jurusan
+                                                     FROM t_kelas
+                                                     ORDER BY tingkat, jurusan, nama"
+                                                );
+
+                                                if ($kelas_edit):
+                                                    while ($kls = $kelas_edit->fetch_assoc()):
+                                                ?>
+                                                    <option
+                                                        value="<?= (int)$kls['id'] ?>"
+                                                        <?= ((int)$kls['id'] === $kelas_id_aktif) ? 'selected' : '' ?>>
+                                                        <?= e(formatKelas(
+                                                            $kls['tingkat'],
+                                                            $kls['jurusan'],
+                                                            $kls['nama']
+                                                        )) ?>
+                                                    </option>
+                                                <?php
+                                                    endwhile;
+                                                endif;
+                                                ?>
+                                            </select>
+                                        </div>
+
+                                        <div class="form-group">
+                                            <label>Jenis Kelamin</label>
+                                            <select name="jk" class="form-control">
+                                                <option value="L" <?= $jk === 'L' ? 'selected' : '' ?>>
+                                                    Laki-laki
+                                                </option>
+                                                <option value="P" <?= $jk === 'P' ? 'selected' : '' ?>>
+                                                    Perempuan
+                                                </option>
+                                            </select>
                                         </div>
                                     </div>
 
-                                    <!-- MODAL HAPUS SISWA -->
-                                    <div class="modal fade" id="hapusSiswa<?= $id; ?>" tabindex="-1" role="dialog" aria-hidden="true">
-                                        <div class="modal-dialog" role="document">
-                                            <div class="modal-content">
-                                                <div class="modal-header bg-danger text-white">
-                                                    <h5 class="modal-title font-weight-bold"><i class="fas fa-trash mr-2"></i> Hapus Siswa</h5>
-                                                    <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
-                                                </div>
-                                                <div class="modal-body text-left">
-                                                    Apakah Anda yakin ingin menghapus data siswa <strong><?= $nama; ?></strong>?
-                                                </div>
-                                                <div class="modal-footer">
-                                                    <button type="button" class="btn btn-secondary btn-sm" data-dismiss="modal">Batal</button>
-                                                    <a href="siswa.php?action=hapus&id=<?= $id; ?>" class="btn btn-danger btn-sm">Ya, Hapus</a>
-                                                </div>
-                                            </div>
-                                        </div>
+                                    <div class="modal-footer">
+                                        <button type="button"
+                                                class="btn btn-secondary btn-sm"
+                                                data-dismiss="modal">
+                                            Batal
+                                        </button>
+                                        <button type="submit" name="edit_siswa"
+                                                class="btn btn-warning btn-sm">
+                                            Simpan
+                                        </button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+
+                        <!-- MODAL HAPUS SISWA -->
+                        <div class="modal fade" id="hapusSiswa<?= $id ?>"
+                             tabindex="-1" role="dialog">
+                            <div class="modal-dialog" role="document">
+                                <div class="modal-content">
+                                    <div class="modal-header bg-danger text-white">
+                                        <h5 class="modal-title">Hapus Siswa</h5>
+                                        <button type="button"
+                                                class="close text-white"
+                                                data-dismiss="modal">
+                                            <span>&times;</span>
+                                        </button>
                                     </div>
 
-                                <?php endwhile; endif; ?>
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-            </div>
+                                    <div class="modal-body">
+                                        Yakin ingin menghapus data siswa
+                                        <strong><?= e($nama) ?></strong>?
+                                    </div>
 
-            <!-- FOOTER -->
-            <footer class="mt-5 py-3 text-center text-muted border-top small">
-                &copy; 2026 - Sistem Informasi Pelanggaran Siswa &bull; Developed by <strong>Azril Akbar Fawji Abdillah</strong>
-            </footer>
-        </main>
+                                    <div class="modal-footer">
+                                        <button type="button"
+                                                class="btn btn-secondary btn-sm"
+                                                data-dismiss="modal">
+                                            Batal
+                                        </button>
+                                        <a href="siswa.php?action=hapus&id=<?= $id ?>"
+                                           class="btn btn-danger btn-sm"
+                                           onclick="return confirm('Yakin ingin menghapus siswa ini?')">
+                                            Ya, Hapus
+                                        </a>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                    <?php endwhile; ?>
+                <?php endif; ?>
+                </tbody>
+            </table>
+        </div>
     </div>
 </div>
 
-<!-- MODAL FORM TAMBAH SISWA -->
-<div class="modal fade" id="modalTambahSiswa" tabindex="-1" role="dialog" aria-hidden="true">
+<!-- MODAL TAMBAH SISWA -->
+<div class="modal fade" id="modalTambahSiswa"
+     tabindex="-1" role="dialog">
     <div class="modal-dialog" role="document">
         <form method="POST" action="siswa.php" class="modal-content">
+
             <div class="modal-header bg-primary text-white">
-                <h5 class="modal-title font-weight-bold"><i class="fas fa-user-plus mr-2"></i> Tambah Siswa Baru</h5>
-                <button type="button" class="close text-white" data-dismiss="modal" aria-label="Close"><span aria-hidden="true">&times;</span></button>
+                <h5 class="modal-title">Tambah Siswa Baru</h5>
+                <button type="button" class="close text-white"
+                        data-dismiss="modal">
+                    <span>&times;</span>
+                </button>
             </div>
+
             <div class="modal-body">
                 <div class="form-group">
                     <label>NIS / No Induk</label>
-                    <input type="text" class="form-control" name="nis" placeholder="Contoh: 12345">
+                    <input type="text" name="nis"
+                           class="form-control" maxlength="15" inputmode="numeric" pattern="[0-9]{0,15}" title="Maksimal 15 digit">
                 </div>
+
                 <div class="form-group">
-                    <label>Nama Lengkap Siswa <span class="text-danger">*</span></label>
-                    <input type="text" class="form-control" name="nama" required placeholder="Masukkan nama lengkap siswa">
+                    <label>Nama Lengkap Siswa</label>
+                    <input type="text" name="nama"
+                           class="form-control" required>
                 </div>
+
                 <div class="form-group">
                     <label>Kelas</label>
-                    <select class="form-control" name="kelas_id">
+                    <select name="kelas_id" class="form-control">
                         <option value="0">-- Pilih Kelas --</option>
-                        <?php if ($list_kelas && $list_kelas->num_rows > 0): ?>
+
+                        <?php if ($list_kelas): ?>
                             <?php while ($kls = $list_kelas->fetch_assoc()): ?>
-                                <option value="<?= $kls['id']; ?>"><?= htmlspecialchars($kls['nama']); ?></option>
+                                <option value="<?= (int)$kls['id'] ?>">
+                                    <?= e(formatKelas(
+                                        $kls['tingkat'],
+                                        $kls['jurusan'],
+                                        $kls['nama']
+                                    )) ?>
+                                </option>
                             <?php endwhile; ?>
                         <?php endif; ?>
                     </select>
                 </div>
+
                 <div class="form-group">
                     <label>Jenis Kelamin</label>
-                    <select class="form-control" name="jk">
+                    <select name="jk" class="form-control">
                         <option value="L">Laki-laki</option>
                         <option value="P">Perempuan</option>
                     </select>
                 </div>
             </div>
+
             <div class="modal-footer">
-                <button type="button" class="btn btn-secondary btn-sm" data-dismiss="modal">Batal</button>
-                <button type="submit" name="tambah_siswa" class="btn btn-primary btn-sm"><i class="fas fa-save mr-1"></i> Simpan</button>
+                <button type="button" class="btn btn-secondary btn-sm"
+                        data-dismiss="modal">
+                    Batal
+                </button>
+                <button type="submit" name="tambah_siswa"
+                        class="btn btn-primary btn-sm">
+                    Simpan
+                </button>
             </div>
         </form>
     </div>
 </div>
 
-<!-- JavaScript Dependencies -->
+<footer class="mt-5 py-3 text-center text-muted border-top small">
+    &copy; 2026 - Sistem Informasi Pelanggaran Siswa
+    &bull; Developed by <strong>Azril Akbar Fawji Abdillah</strong>
+</footer>
+
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/popper.js@1.14.3/dist/umd/popper.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.1.3/dist/js/bootstrap.min.js"></script>
-<!-- DataTables JS -->
 <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
 <script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap4.min.js"></script>
 
 <script>
-    $(document).ready(function() {
-        $('#tabelSiswa').DataTable({
-            "language": {
-                "search": "Cari:",
-                "lengthMenu": "Tampilkan _MENU_ data per halaman",
-                "zeroRecords": "Tidak ada data yang ditemukan",
-                "info": "Menampilkan halaman _PAGE_ dari _PAGES_",
-                "infoEmpty": "Tidak ada data tersedia",
-                "infoFiltered": "(disaring dari _MAX_ total data)",
-                "paginate": {
-                    "first": "Pertama",
-                    "last": "Terakhir",
-                    "next": "Selanjutnya",
-                    "previous": "Sebelumnya"
-                }
+$(document).ready(function () {
+    $('#tabelSiswa').DataTable({
+        language: {
+            search: 'Cari:',
+            lengthMenu: 'Tampilkan _MENU_ data per halaman',
+            zeroRecords: 'Tidak ada data yang ditemukan',
+            info: 'Menampilkan halaman _PAGE_ dari _PAGES_',
+            infoEmpty: 'Tidak ada data tersedia',
+            infoFiltered: '(disaring dari _MAX_ total data)',
+            paginate: {
+                first: 'Pertama',
+                last: 'Terakhir',
+                next: 'Selanjutnya',
+                previous: 'Sebelumnya'
             }
-        });
+        }
     });
+});
 </script>
+
 </body>
 </html>

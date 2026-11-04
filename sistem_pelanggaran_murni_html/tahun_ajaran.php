@@ -1,32 +1,81 @@
 <?php
 if (session_status() === PHP_SESSION_NONE) { session_start(); }
-ini_set('display_errors', '1'); error_reporting(E_ALL);
+ini_set('display_errors', '0'); error_reporting(E_ALL);
 require_once 'auth.php'; require_once 'koneksi.php';
 
 $pesan_sukses = ""; $pesan_error = "";
 
+// Tahun ajaran dengan tahun awal sampai 2026 berstatus aktif.
+// Tahun ajaran yang dimulai setelah 2026 otomatis tidak aktif.
+$koneksi->query("UPDATE t_tahun_ajaran
+    SET status_aktif = CASE
+        WHEN CAST(SUBSTRING_INDEX(nama, '/', 1) AS UNSIGNED) <= 2026 THEN 1
+        ELSE 0
+    END
+    WHERE nama REGEXP '^[0-9]{4}/[0-9]{4}$'");
+
+// Pastikan daftar tahun ajaran 2021/2022 sampai 2026/2027 tersedia.
+// Pencarian dilakukan berdasarkan nama karena dump SQL tidak memiliki UNIQUE KEY pada kolom nama.
+for ($tahun = 2021; $tahun <= 2026; $tahun++) {
+    $nama_default = $tahun . '/' . ($tahun + 1);
+    $mulai = $tahun . '-07-01';
+    $selesai = ($tahun + 1) . '-06-30';
+    $status_default = 1;
+
+    $cek_default = $koneksi->prepare("SELECT id FROM t_tahun_ajaran WHERE nama = ? ORDER BY id ASC LIMIT 1");
+    $cek_default->bind_param("s", $nama_default);
+    $cek_default->execute();
+    $baris_default = $cek_default->get_result()->fetch_assoc();
+    $cek_default->close();
+
+    if ($baris_default) {
+        $id_default = (int)$baris_default['id'];
+        $update_default = $koneksi->prepare("UPDATE t_tahun_ajaran SET tanggal_mulai = ?, tanggal_selesai = ?, status_aktif = ? WHERE id = ?");
+        $update_default->bind_param("ssii", $mulai, $selesai, $status_default, $id_default);
+        $update_default->execute();
+        $update_default->close();
+    } else {
+        $insert_default = $koneksi->prepare("INSERT INTO t_tahun_ajaran (nama, tanggal_mulai, tanggal_selesai, status_aktif) VALUES (?, ?, ?, ?)");
+        $insert_default->bind_param("sssi", $nama_default, $mulai, $selesai, $status_default);
+        $insert_default->execute();
+        $insert_default->close();
+    }
+}
+
 // 1. TAMBAH TAHUN AJARAN
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['tambah_ta'])) {
     $nama = trim($_POST['nama'] ?? '');
-    $tanggal_mulai = trim($_POST['tanggal_mulai'] ?? '2026-07-01');
-    $tanggal_selesai = trim($_POST['tanggal_selesai'] ?? '2027-06-30');
-    $status_aktif = intval($_POST['status_aktif'] ?? 0);
+    preg_match('/^(\d{4})\/(\d{4})$/', $nama, $tahun_match);
+    $tahun_awal = isset($tahun_match[1]) ? (int)$tahun_match[1] : 0;
+    $tahun_akhir = isset($tahun_match[2]) ? (int)$tahun_match[2] : 0;
+    $format_valid = $tahun_awal >= 1900 && $tahun_akhir === $tahun_awal + 1;
+    $tanggal_mulai = $format_valid ? $tahun_awal . '-07-01' : '';
+    $tanggal_selesai = $format_valid ? ($tahun_awal + 1) . '-06-30' : '';
+    $status_aktif = ($format_valid && $tahun_awal <= 2026) ? 1 : 0;
 
-    if (!empty($nama)) {
-        if ($status_aktif == 1) {
-            $koneksi->query("UPDATE t_tahun_ajaran SET status_aktif = 0");
-        }
+    if (!empty($nama) && $format_valid) {
+        $cek_nama = $koneksi->prepare("SELECT id FROM t_tahun_ajaran WHERE nama = ? LIMIT 1");
+        $cek_nama->bind_param("s", $nama);
+        $cek_nama->execute();
+        $sudah_ada = $cek_nama->get_result()->num_rows > 0;
+        $cek_nama->close();
+        if ($sudah_ada) {
+            $pesan_error = "Tahun ajaran tersebut sudah tersedia!";
+        } else {
         $stmt = $koneksi->prepare("INSERT INTO t_tahun_ajaran (nama, tanggal_mulai, tanggal_selesai, status_aktif) VALUES (?, ?, ?, ?)");
         $stmt->bind_param("sssi", $nama, $tanggal_mulai, $tanggal_selesai, $status_aktif);
         
         if ($stmt->execute()) {
-            $pesan_sukses = "Tahun ajaran berhasil ditambahkan!";
+            $pesan_sukses = $status_aktif
+                ? "Tahun ajaran berhasil ditambahkan dengan status Aktif!"
+                : "Tahun ajaran berhasil ditambahkan dengan status Tidak Aktif!";
         } else {
             $pesan_error = "Gagal menyimpan: " . $stmt->error;
         }
         $stmt->close();
+        }
     } else {
-        $pesan_error = "Tahun ajaran wajib diisi!";
+        $pesan_error = "Format tahun ajaran harus berurutan, misalnya 2026/2027!";
     }
 }
 
@@ -45,7 +94,7 @@ if (isset($_GET['action']) && $_GET['action'] === 'hapus' && isset($_GET['id']))
     }
 }
 
-$result_ta = $koneksi->query("SELECT * FROM t_tahun_ajaran ORDER BY id DESC");
+$result_ta = $koneksi->query("SELECT * FROM t_tahun_ajaran ORDER BY tanggal_mulai ASC, id ASC");
 
 include 'header.php';
 ?>
@@ -55,8 +104,8 @@ include 'header.php';
                 <button class="btn btn-primary btn-sm" data-toggle="modal" data-target="#modalTA"><i class="fas fa-plus mr-1"></i> Tambah Tahun Ajaran</button>
             </div>
 
-            <?php if (!empty($pesan_sukses)): ?><div class="alert alert-success alert-dismissible fade show"><?= $pesan_sukses; ?><button type="button" class="close" data-dismiss="alert"><span>&times;</span></button></div><?php endif; ?>
-            <?php if (!empty($pesan_error)): ?><div class="alert alert-danger alert-dismissible fade show"><?= $pesan_error; ?><button type="button" class="close" data-dismiss="alert"><span>&times;</span></button></div><?php endif; ?>
+            <?php if (!empty($pesan_sukses)): ?><div class="alert alert-success alert-dismissible fade show"><?= htmlspecialchars($pesan_sukses, ENT_QUOTES, 'UTF-8'); ?><button type="button" class="close" data-dismiss="alert"><span>&times;</span></button></div><?php endif; ?>
+            <?php if (!empty($pesan_error)): ?><div class="alert alert-danger alert-dismissible fade show"><?= htmlspecialchars($pesan_error, ENT_QUOTES, 'UTF-8'); ?><button type="button" class="close" data-dismiss="alert"><span>&times;</span></button></div><?php endif; ?>
 
             <div class="card shadow-sm">
                 <div class="card-body">
@@ -108,39 +157,54 @@ include 'header.php';
                     <label>Tahun Ajaran <span class="text-danger">*</span></label>
                     <input type="text" name="nama" class="form-control" required placeholder="Contoh: 2026/2027">
                 </div>
-                <div class="form-group">
-                    <label>Status</label>
-                    <select name="status_aktif" class="form-control">
-                        <option value="1">Aktif</option>
-                        <option value="0" selected>Tidak Aktif</option>
-                    </select>
-                </div>
+                <small class="form-text text-muted">Status ditentukan otomatis: tahun awal sampai 2026 berstatus Aktif, sedangkan tahun setelah 2026 berstatus Tidak Aktif.</small>
             </div>
             <div class="modal-footer"><button type="button" class="btn btn-secondary btn-sm" data-dismiss="modal">Batal</button><button type="submit" name="tambah_ta" class="btn btn-primary btn-sm"><i class="fas fa-save mr-1"></i> Simpan</button></div>
         </form>
     </div>
 </div>
 
-<!-- JavaScript Dependencies -->
-<script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/popper.js@1.14.3/dist/umd/popper.min.js"></script>
+<!-- Bootstrap JS wajib dimuat di halaman ini agar modal Tambah Tahun Ajaran berfungsi.
+     header.php sudah memuat jQuery, jadi cukup tambahkan Popper dan Bootstrap. -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/popper.js/1.14.3/umd/popper.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.1.3/dist/js/bootstrap.min.js"></script>
-<script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
-<script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap4.min.js"></script>
 <script>
-    $(document).ready(function() {
-        $('#tabelTA').DataTable({
-            "language": {
-                "search": "Cari:",
-                "lengthMenu": "Tampilkan _MENU_ data per halaman",
-                "zeroRecords": "Tidak ada data yang ditemukan",
-                "info": "Menampilkan halaman _PAGE_ dari _PAGES_",
-                "infoEmpty": "Tidak ada data tersedia",
-                "infoFiltered": "(disaring dari _MAX_ total data)",
-                "paginate": { "first": "Pertama", "last": "Terakhir", "next": "Selanjutnya", "previous": "Sebelumnya" }
+    // Samakan fungsi tombol Dark Mode dengan halaman lain.
+    (function () {
+        const root = document.documentElement;
+        const button = document.getElementById('themeToggle');
+        const saved = localStorage.getItem('sip-theme');
+        const preferred = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches;
+        function applyTheme(theme) {
+            const dark = theme === 'dark';
+            root.setAttribute('data-theme', dark ? 'dark' : 'light');
+            if (button) {
+                button.innerHTML = dark ? '<i class="fas fa-sun" aria-hidden="true"></i>' : '<i class="fas fa-moon" aria-hidden="true"></i>';
+                button.setAttribute('aria-label', dark ? 'Aktifkan mode terang' : 'Aktifkan mode gelap');
+                button.title = dark ? 'Gunakan mode terang' : 'Gunakan mode gelap';
+            }
+        }
+        applyTheme(saved || (preferred ? 'dark' : 'light'));
+        if (button) button.addEventListener('click', function () {
+            const next = root.getAttribute('data-theme') === 'dark' ? 'light' : 'dark';
+            localStorage.setItem('sip-theme', next);
+            applyTheme(next);
+        });
+    })();
+
+    if (window.jQuery && window.jQuery.fn.DataTable && !window.jQuery.fn.dataTable.isDataTable('#tabelTA')) {
+        window.jQuery('#tabelTA').DataTable({
+            language: {
+                search: 'Cari:',
+                lengthMenu: 'Tampilkan _MENU_ data per halaman',
+                zeroRecords: 'Tidak ada data yang ditemukan',
+                info: 'Menampilkan halaman _PAGE_ dari _PAGES_',
+                infoEmpty: 'Tidak ada data tersedia',
+                infoFiltered: '(disaring dari _MAX_ total data)',
+                paginate: { first: 'Pertama', last: 'Terakhir', next: 'Selanjutnya', previous: 'Sebelumnya' }
             }
         });
-    });
+    }
 </script>
 </body>
 </html>

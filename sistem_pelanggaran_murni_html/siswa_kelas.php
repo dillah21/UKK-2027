@@ -110,7 +110,7 @@ $list_kelas = $koneksi->query(
 );
 
 $list_ta = $koneksi->query(
-    "SELECT id, nama FROM t_tahun_ajaran ORDER BY id DESC"
+    "SELECT id, nama FROM t_tahun_ajaran WHERE status_aktif = 1 ORDER BY id DESC"
 );
 
 // Pencarian data penempatan

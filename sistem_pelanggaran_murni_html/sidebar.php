@@ -15,13 +15,7 @@ $role = strtolower($_SESSION['role'] ?? '');
         <i class="fas fa-user"></i>
         Data Siswa
     </a>
-
-    <a href="prestasi.php" class="nav-link">
-        <i class="fas fa-trophy"></i>
-        Data Prestasi
-    </a>
-
-    <a href="kelas.php" class="nav-link">
+<a href="kelas.php" class="nav-link">
         <i class="fas fa-school"></i>
         Kelas
     </a>

@@ -15,12 +15,13 @@ if ($id <= 0) {
 
 // 1. Proses Update Data Siswa
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_siswa'])) {
-    $nis = trim($_POST['nis'] ?? '');
+    $nis_raw = trim($_POST['nis'] ?? '');
+    $nis = preg_replace('/\\D+/', '', $nis_raw);
     $nama = trim($_POST['nama'] ?? '');
     $kelas_id = intval($_POST['kelas_id'] ?? 0);
     $jk = trim($_POST['jk'] ?? 'L');
 
-    if (!empty($nama)) {
+    if (!empty($nama) && strlen($nis_raw) <= 15) {
         $stmt = $koneksi->prepare("UPDATE t_siswa SET nis = ?, nama = ?, jenis_kelamin = ? WHERE id = ?");
         $stmt->bind_param("sssi", $nis, $nama, $jk, $id);
         
@@ -39,7 +40,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_siswa'])) {
                     $koneksi->query("UPDATE t_kelas_siswa SET status_aktif = 0 WHERE siswa_id = $id AND status_aktif = 1");
                 }
             } else if ($kelas_id > 0) {
-                $ta_q = $koneksi->query("SELECT id FROM t_tahun_ajaran WHERE status_aktif = 1 LIMIT 1");
+                $ta_q = $koneksi->query("SELECT id FROM t_tahun_ajaran WHERE status_aktif = 1 ORDER BY tanggal_mulai DESC, id DESC LIMIT 1");
                 $ta_id = ($ta_q && $ta_q->num_rows > 0) ? $ta_q->fetch_assoc()['id'] : 1;
                 $tgl_mulai = date('Y-m-d');
                 $tgl_selesai = date('Y-m-d', strtotime('+1 year'));
@@ -57,7 +58,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_siswa'])) {
             $pesan_error = "Gagal memperbarui data: " . $koneksi->error;
         }
     } else {
-        $pesan_error = "Nama siswa tidak boleh kosong!";
+        $pesan_error = strlen($nis) > 15 ? "NIS maksimal 15 digit!" : "Nama siswa tidak boleh kosong!";
     }
 }
 
@@ -104,7 +105,7 @@ include 'header.php';
                         <div class="form-group row mb-2">
                             <label class="col-sm-4 col-form-label font-weight-bold text-sm">NIS / No Induk</label>
                             <div class="col-sm-8">
-                                <input type="text" class="form-control form-control-sm" name="nis" value="<?= htmlspecialchars($row['nis'] ?? ''); ?>">
+                                <input type="text" class="form-control form-control-sm" name="nis" maxlength="15" inputmode="numeric" pattern="[0-9]{0,15}" title="Maksimal 15 digit" value="<?= htmlspecialchars($row['nis'] ?? ''); ?>">
                             </div>
                         </div>
                         <div class="form-group row mb-2">

@@ -9,12 +9,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $nama = trim($_POST['name'] ?? '');
     $email = trim($_POST['email'] ?? '');
     $password = $_POST['password'] ?? '';
-    $role = $_POST['role'] ?? 'petugas';
+    $role = $_POST['role'] ?? 'guru';
 
-    if (!empty($nama) && !empty($email) && !empty($password)) {
+    $roles_valid = ['admin', 'guru', 'siswa', 'kepsek'];
+    if ($nama !== '' && filter_var($email, FILTER_VALIDATE_EMAIL) && $password !== ''
+        && strlen($password) >= 8 && in_array($role, $roles_valid, true)) {
         $hash_password = password_hash($password, PASSWORD_DEFAULT);
-        $stmt = $koneksi->prepare("INSERT INTO t_users (name, email, password, role) VALUES (?, ?, ?, ?)");
-        $stmt->bind_param("ssss", $nama, $email, $hash_password, $role);
+        $remember_token = bin2hex(random_bytes(20));
+        $stmt = $koneksi->prepare("INSERT INTO t_users (name, email, password, remember_token, role, created_at, updated_at) VALUES (?, ?, ?, ?, ?, NOW(), NOW())");
+        $stmt->bind_param("sssss", $nama, $email, $hash_password, $remember_token, $role);
         if ($stmt->execute()) {
             $message = "Pengguna baru berhasil ditambahkan.";
         } else {
@@ -22,7 +25,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         $stmt->close();
     } else {
-        $message = "Semua kolom form wajib diisi!";
+        $message = "Isi nama, email valid, password minimal 8 karakter, dan role yang tersedia.";
     }
 }
 

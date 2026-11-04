@@ -1,0 +1,27 @@
+CATATAN REVISI APLIKASI
+======================
+
+Perbaikan berdasarkan pemeriksaan ZIP dan struktur db_ukk_2026.sql:
+
+1. Dashboard: query pelanggaran terbaru disesuaikan dengan kolom tabel t_pelanggaran_siswa.
+2. Rekap poin: menghitung poin dari t_pelanggaran_siswa (bukan tabel riwayat yang tidak tersedia).
+3. Cetak surat peringatan: riwayat poin dan wali kelas dibaca dari relasi/tabel yang tersedia.
+4. Ekspor CSV: menggunakan t_pelanggaran_siswa dan filter tanggal/kelas dengan prepared statement.
+5. Tindak lanjut BK: tabel t_tindak_lanjut dibuat otomatis jika belum tersedia; data disimpan dengan validasi.
+6. Form pelanggaran: CRUD disesuaikan dengan kolom t_pelanggaran yang sebenarnya, termasuk kode, kategori, deskripsi, dan status.
+7. Tambah pelanggaran: memakai prepared statements dan memeriksa data referensi.
+8. Data guru: pembuatan guru disesuaikan dengan kolom wajib t_guru dan membuat akun login guru baru.
+   Kredensial sementara ditampilkan sekali pada pesan berhasil di halaman setelah menyimpan.
+9. Kelola pengguna: token login diisi dan pilihan role dibatasi pada role yang dapat login.
+10. Tahun ajaran: memastikan 2021/2022 sampai 2026/2027 tersedia; tahun awal <= 2026 aktif,
+    tahun awal > 2026 tidak aktif. Pencarian berdasarkan nama mencegah duplikasi dan mempertahankan ID tahun ajaran yang sudah ada.
+11. Wali kelas: sinkronisasi tahun ajaran mengikuti aturan yang sama dan daftar pilihan aktif memuat 2021-2026.
+12. Menu siswa/kepala sekolah dirapikan sesuai hak akses.
+13. Halaman debug yang menampilkan password database dan skrip seeder akun contoh dihapus.
+
+PENTING:
+- Pemeriksaan php -l berhasil untuk semua file PHP.
+- Pengujian koneksi database langsung tidak dilakukan di lingkungan ini. Setelah ekstrak,
+  buka halaman Tahun Ajaran dan Wali Kelas agar sinkronisasi tahun ajaran berjalan.
+- Sebelum mengganti folder aplikasi, backup folder dan database terlebih dahulu.
+- Password akun lama tidak diubah oleh revisi ini.
