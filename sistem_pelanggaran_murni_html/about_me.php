@@ -41,7 +41,7 @@ include 'header.php';
                                     <tr>
                                         <td style="font-weight: 600;"><i class="fas fa-heart text-danger mr-2"></i> Cita-cita</td>
                                         <td>:</td>
-                                        <td>Apa adanya</td>
+                                        <td>CEO MUDA</td>
                                     </tr>
                                     <tr>
                                         <td style="font-weight: 600;"><i class="fas fa-project-diagram text-warning mr-2"></i> Project UKK</td>
