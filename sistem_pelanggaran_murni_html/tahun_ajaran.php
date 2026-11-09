@@ -79,6 +79,36 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['tambah_ta'])) {
     }
 }
 
+// EDIT TAHUN AJARAN
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_ta'])) {
+    $id = (int)($_POST['id'] ?? 0);
+    $nama = trim($_POST['nama'] ?? '');
+    preg_match('/^(\d{4})\/(\d{4})$/', $nama, $m);
+    $awal = isset($m[1]) ? (int)$m[1] : 0;
+    $akhir = isset($m[2]) ? (int)$m[2] : 0;
+    if ($id <= 0 || $awal < 1900 || $akhir !== $awal + 1) {
+        $pesan_error = "Format tahun ajaran tidak valid. Gunakan contoh 2026/2027.";
+    } else {
+        $mulai = $awal . '-07-01';
+        $selesai = ($awal + 1) . '-06-30';
+        $status = $awal <= 2026 ? 1 : 0;
+        $cek = $koneksi->prepare("SELECT id FROM t_tahun_ajaran WHERE nama = ? AND id <> ? LIMIT 1");
+        $cek->bind_param("si", $nama, $id);
+        $cek->execute();
+        $duplikat = $cek->get_result()->num_rows > 0;
+        $cek->close();
+        if ($duplikat) {
+            $pesan_error = "Nama tahun ajaran tersebut sudah digunakan.";
+        } else {
+            $up = $koneksi->prepare("UPDATE t_tahun_ajaran SET nama=?, tanggal_mulai=?, tanggal_selesai=?, status_aktif=? WHERE id=?");
+            $up->bind_param("sssii", $nama, $mulai, $selesai, $status, $id);
+            if ($up->execute()) $pesan_sukses = "Tahun ajaran berhasil diperbarui.";
+            else $pesan_error = "Gagal memperbarui: " . $up->error;
+            $up->close();
+        }
+    }
+}
+
 // 2. HAPUS TAHUN AJARAN
 if (isset($_GET['action']) && $_GET['action'] === 'hapus' && isset($_GET['id'])) {
     $id_hapus = intval($_GET['id']);
@@ -132,6 +162,7 @@ include 'header.php';
                                             <?php endif; ?>
                                         </td>
                                         <td class="text-center">
+                                            <button type="button" class="btn btn-warning btn-sm" data-toggle="modal" data-target="#editTA<?= (int)$r['id']; ?>"><i class="fas fa-edit"></i> Edit</button>
                                             <a href="tahun_ajaran.php?action=hapus&id=<?= $r['id']; ?>" class="btn btn-danger btn-sm" onclick="return confirm('Yakin ingin menghapus tahun ajaran ini?');"><i class="fas fa-trash"></i> Hapus</a>
                                         </td>
                                     </tr>
@@ -146,6 +177,26 @@ include 'header.php';
         </main>
     </div>
 </div>
+
+<!-- Modal Edit Tahun Ajaran -->
+<?php
+$edit_rows = $koneksi->query("SELECT id, nama FROM t_tahun_ajaran ORDER BY id ASC");
+while ($er = $edit_rows->fetch_assoc()):
+?>
+<div class="modal fade" id="editTA<?= (int)$er['id']; ?>" tabindex="-1" role="dialog" aria-hidden="true">
+ <div class="modal-dialog" role="document">
+  <form method="POST" action="tahun_ajaran.php" class="modal-content">
+   <div class="modal-header bg-warning"><h5 class="modal-title">Edit Tahun Ajaran</h5><button type="button" class="close" data-dismiss="modal"><span>&times;</span></button></div>
+   <div class="modal-body">
+    <input type="hidden" name="id" value="<?= (int)$er['id']; ?>">
+    <div class="form-group"><label>Tahun Ajaran</label><input type="text" name="nama" class="form-control" value="<?= htmlspecialchars($er['nama'], ENT_QUOTES, 'UTF-8'); ?>" pattern="[0-9]{4}/[0-9]{4}" required></div>
+    <small class="text-muted">Tanggal dan status akan disesuaikan otomatis berdasarkan tahun awal. Tahun awal sampai 2026 berstatus Aktif.</small>
+   </div>
+   <div class="modal-footer"><button type="button" class="btn btn-secondary btn-sm" data-dismiss="modal">Batal</button><button type="submit" name="edit_ta" class="btn btn-warning btn-sm">Simpan Perubahan</button></div>
+  </form>
+ </div>
+</div>
+<?php endwhile; ?>
 
 <!-- Modal Tambah Tahun Ajaran -->
 <div class="modal fade" id="modalTA" tabindex="-1" role="dialog" aria-hidden="true">

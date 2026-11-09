@@ -244,7 +244,63 @@ if (isset($koneksi) && $koneksi instanceof mysqli) {
             body { background: #fff !important; }
             .card { box-shadow: none !important; }
         }
-    </style>
+    
+        /* Konsistensi seluruh formulir tambah/edit pada semua modul */
+        form:not(.form-inline) { width: 100%; }
+        form:not(.form-inline) .form-group,
+        form:not(.form-inline) .form-row { margin-bottom: 16px; }
+        form:not(.form-inline) label,
+        form:not(.form-inline) td label {
+            display: inline-block; margin-bottom: 7px; color: #43536d;
+            font-size: 12px; font-weight: 700;
+        }
+        form:not(.form-inline) input:not([type="checkbox"]):not([type="radio"]):not([type="submit"]):not([type="hidden"]),
+        form:not(.form-inline) select,
+        form:not(.form-inline) textarea {
+            display: block; width: 100%; max-width: 100%; min-height: 42px;
+            padding: 9px 12px; color: #24344e; background: #fff;
+            border: 1px solid #dce4ef; border-radius: 9px;
+            font: inherit; line-height: 1.4; box-shadow: none;
+            transition: border-color .18s ease, box-shadow .18s ease;
+        }
+        form:not(.form-inline) textarea { min-height: 100px; resize: vertical; }
+        form:not(.form-inline) input:focus,
+        form:not(.form-inline) select:focus,
+        form:not(.form-inline) textarea:focus {
+            outline: 0; border-color: #75a5fa;
+            box-shadow: 0 0 0 3px rgba(37,99,235,.11);
+        }
+        form:not(.form-inline) input[type="checkbox"],
+        form:not(.form-inline) input[type="radio"] { width: auto; min-height: auto; margin-right: 6px; }
+        form:not(.form-inline) button,
+        form:not(.form-inline) input[type="submit"] { min-height: 38px; }
+        /* Form lama berbasis tabel tetap rapi dan responsif */
+        form:not(.form-inline) table:not(.table) {
+            width: 100%; max-width: 100%; border: 0; border-collapse: separate;
+            border-spacing: 0 10px;
+        }
+        form:not(.form-inline) table:not(.table) td {
+            padding: 3px 8px; border: 0; vertical-align: middle;
+        }
+        form:not(.form-inline) table:not(.table) td:first-child { width: 180px; }
+        form:not(.form-inline) table:not(.table) td input,
+        form:not(.form-inline) table:not(.table) td select,
+        form:not(.form-inline) table:not(.table) td textarea { width: 100%; }
+        .modal .modal-body form { padding: 2px 0; }
+        .modal .modal-body form .form-group:last-child { margin-bottom: 0; }
+        .card form .form-actions,
+        form .form-actions { display: flex; flex-wrap: wrap; gap: 9px; align-items: center; margin-top: 20px; }
+        @media (max-width: 767.98px) {
+            .main-content { padding: 16px; margin-left: 0; }
+            .topbar { margin: -16px -16px 20px; padding: 12px 16px; }
+            form:not(.form-inline) table:not(.table),
+            form:not(.form-inline) table:not(.table) tbody,
+            form:not(.form-inline) table:not(.table) tr,
+            form:not(.form-inline) table:not(.table) td { display: block; width: 100% !important; }
+            form:not(.form-inline) table:not(.table) td { padding: 4px 0; }
+            form:not(.form-inline) table:not(.table) td:first-child { padding-bottom: 0; }
+        }
+</style>
 </head>
 
 <body>

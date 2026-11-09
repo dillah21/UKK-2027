@@ -11,7 +11,7 @@ $role = strtolower($_SESSION['role'] ?? '');
         Dashboard
     </a>
 
-    <a href="data_siswa.php" class="nav-link">
+    <a href="siswa.php" class="nav-link">
         <i class="fas fa-user"></i>
         Data Siswa
     </a>

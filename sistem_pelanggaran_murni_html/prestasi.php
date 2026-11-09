@@ -104,6 +104,7 @@ if (file_exists('sidebar.php')) include 'sidebar.php';
                                         <td class="text-center fw-bold text-success">+<?php echo htmlspecialchars($d['poin']); ?></td>
                                         <td><?php echo !empty($d['keterangan']) ? htmlspecialchars($d['keterangan']) : '<span class="text-muted">-</span>'; ?></td>
                                         <td class="text-center">
+                                            <a href="prestasi_edit.php?id=<?php echo (int)$id_hapus; ?>" class="btn btn-warning btn-sm" title="Edit"><i class="fas fa-edit"></i></a>
                                             <a href="prestasi_hapus.php?id=<?php echo $id_hapus; ?>" class="btn btn-danger btn-sm" onclick="return confirm('Apakah Anda yakin ingin menghapus data prestasi ini?')">
                                                 <i class="fas fa-trash-alt"></i>
                                             </a>

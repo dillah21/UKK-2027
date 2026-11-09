@@ -18,7 +18,15 @@ $koneksi->query("
     ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4
 ");
 
+$edit_data = null;
+if (isset($_GET['edit'])) {
+    $edit_id_get = (int)$_GET['edit'];
+    $qedit = $koneksi->prepare("SELECT * FROM t_tindak_lanjut WHERE id=?");
+    $qedit->bind_param('i', $edit_id_get); $qedit->execute();
+    $edit_data = $qedit->get_result()->fetch_assoc(); $qedit->close();
+}
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $edit_id = (int)($_POST['id'] ?? 0);
     $siswa_id = (int)($_POST['siswa_id'] ?? 0);
     $tanggal = trim($_POST['tanggal'] ?? date('Y-m-d'));
     $status = trim($_POST['status'] ?? '');
@@ -37,11 +45,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if (!$ada) {
             $message = 'Siswa tidak ditemukan.';
         } else {
-            $stmt = $koneksi->prepare("INSERT INTO t_tindak_lanjut (siswa_id, tanggal_tindak_lanjut, status, catatan) VALUES (?, ?, ?, ?)");
-            $stmt->bind_param('isss', $siswa_id, $tanggal, $status, $catatan);
-            $stmt->execute();
-            $stmt->close();
-            $message = 'Status tindak lanjut berhasil disimpan.';
+            if ($edit_id > 0) {
+                $stmt = $koneksi->prepare("UPDATE t_tindak_lanjut SET siswa_id=?, tanggal_tindak_lanjut=?, status=?, catatan=? WHERE id=?");
+                $stmt->bind_param('isssi', $siswa_id, $tanggal, $status, $catatan, $edit_id);
+                $stmt->execute(); $stmt->close();
+                $message = 'Tindak lanjut berhasil diperbarui.';
+            } else {
+                $stmt = $koneksi->prepare("INSERT INTO t_tindak_lanjut (siswa_id, tanggal_tindak_lanjut, status, catatan) VALUES (?, ?, ?, ?)");
+                $stmt->bind_param('isss', $siswa_id, $tanggal, $status, $catatan);
+                $stmt->execute(); $stmt->close();
+                $message = 'Status tindak lanjut berhasil disimpan.';
+            }
         }
     }
 }
@@ -69,46 +83,48 @@ include 'header.php';
     <?php if ($message !== ''): ?><div class="alert alert-info"><?= tl_h($message) ?></div><?php endif; ?>
     <div class="card shadow-sm mb-4"><div class="card-body">
         <form method="POST" action="tindak_lanjut.php">
+            <?php if ($edit_data): ?><input type="hidden" name="id" value="<?= (int)$edit_data["id"] ?>"><?php endif; ?>
             <div class="form-row">
                 <div class="form-group col-md-6">
                     <label for="siswa_id">Siswa</label>
                     <select id="siswa_id" name="siswa_id" class="form-control" required>
                         <option value="">-- Pilih Siswa --</option>
                         <?php while ($s = $list_siswa->fetch_assoc()): ?>
-                            <option value="<?= (int)$s['id'] ?>"><?= tl_h($s['nama']) ?> (NISN: <?= tl_h($s['nisn']) ?>)</option>
+                            <option value="<?= (int)$s['id'] ?>" <?= (int)($edit_data['siswa_id'] ?? 0) === (int)$s['id'] ? 'selected' : '' ?>><?= tl_h($s['nama']) ?> (NISN: <?= tl_h($s['nisn']) ?>)</option>
                         <?php endwhile; ?>
                     </select>
                 </div>
                 <div class="form-group col-md-3">
                     <label for="tanggal">Tanggal</label>
-                    <input type="date" id="tanggal" name="tanggal" class="form-control" value="<?= date('Y-m-d') ?>" required>
+                    <input type="date" id="tanggal" name="tanggal" class="form-control" value="<?= tl_h($edit_data["tanggal_tindak_lanjut"] ?? date('Y-m-d')) ?>" required>
                 </div>
                 <div class="form-group col-md-3">
                     <label for="status">Status</label>
                     <select id="status" name="status" class="form-control" required>
-                        <option value="Belum Dipanggil">Belum Dipanggil</option>
-                        <option value="Proses Pembinaan">Proses Pembinaan BK</option>
-                        <option value="Orang Tua Hadir">Orang Tua/Wali Hadir</option>
-                        <option value="Selesai">Selesai / Kasus Ditutup</option>
+                        <option value="Belum Dipanggil" <?= ($edit_data["status"] ?? "") === "Belum Dipanggil" ? "selected" : "" ?>>Belum Dipanggil</option>
+                        <option value="Proses Pembinaan" <?= ($edit_data["status"] ?? "") === "Proses Pembinaan" ? "selected" : "" ?>>Proses Pembinaan BK</option>
+                        <option value="Orang Tua Hadir" <?= ($edit_data["status"] ?? "") === "Orang Tua Hadir" ? "selected" : "" ?>>Orang Tua/Wali Hadir</option>
+                        <option value="Selesai" <?= ($edit_data["status"] ?? "") === "Selesai" ? "selected" : "" ?>>Selesai / Kasus Ditutup</option>
                     </select>
                 </div>
             </div>
             <div class="form-group">
                 <label for="catatan">Catatan / Hasil Pembinaan</label>
-                <textarea id="catatan" name="catatan" class="form-control" rows="3"></textarea>
+                <textarea id="catatan" name="catatan" class="form-control" rows="3"><?= tl_h($edit_data["catatan"] ?? '') ?></textarea>
             </div>
-            <button type="submit" class="btn btn-primary">Simpan Tindak Lanjut</button>
+            <button type="submit" class="btn btn-primary"><?= $edit_data ? 'Simpan Perubahan' : 'Simpan Tindak Lanjut' ?></button>
+            <?php if ($edit_data): ?><a href="tindak_lanjut.php" class="btn btn-light border">Batal Edit</a><?php endif; ?>
         </form>
     </div></div>
     <div class="card shadow-sm"><div class="card-header"><strong>Riwayat Pembinaan & Tindak Lanjut</strong></div>
     <div class="card-body table-responsive">
         <table class="table table-bordered table-striped">
-            <thead class="thead-dark"><tr><th>No</th><th>Tanggal</th><th>Siswa</th><th>Status</th><th>Catatan Pembinaan</th></tr></thead>
+            <thead class="thead-dark"><tr><th>No</th><th>Tanggal</th><th>Siswa</th><th>Status</th><th>Catatan Pembinaan</th><th>Aksi</th></tr></thead>
             <tbody>
             <?php if ($res_tl->num_rows): $no=1; while ($row=$res_tl->fetch_assoc()): ?>
-                <tr><td><?= $no++ ?></td><td><?= tl_h(date('d-m-Y', strtotime($row['tanggal_tindak_lanjut']))) ?></td><td><?= tl_h($row['nama_siswa']) ?> (<?= tl_h($row['nisn']) ?>)</td><td><?= tl_h($row['status']) ?></td><td><?= nl2br(tl_h($row['catatan'] ?: '-')) ?></td></tr>
+                <tr><td><?= $no++ ?></td><td><?= tl_h(date('d-m-Y', strtotime($row['tanggal_tindak_lanjut']))) ?></td><td><?= tl_h($row['nama_siswa']) ?> (<?= tl_h($row['nisn']) ?>)</td><td><?= tl_h($row['status']) ?></td><td><?= nl2br(tl_h($row['catatan'] ?: '-')) ?></td><td><a class="btn btn-warning btn-sm" href="tindak_lanjut.php?edit=<?= (int)$row['id'] ?>"><i class="fas fa-edit"></i> Edit</a></td></tr>
             <?php endwhile; else: ?>
-                <tr><td colspan="5" class="text-center">Belum ada catatan tindak lanjut.</td></tr>
+                <tr><td colspan="6" class="text-center">Belum ada catatan tindak lanjut.</td></tr>
             <?php endif; ?>
             </tbody>
         </table>

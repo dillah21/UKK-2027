@@ -18,7 +18,7 @@ include 'header.php';
                         <!-- Header Profil dengan Gradasi & Foto -->
                         <div class="card-header text-white text-center py-4" style="background: linear-gradient(135deg, #007bff, #6610f2);">
                             <div class="mx-auto mb-3 rounded-circle shadow border border-white" style="width: 100px; height: 100px; overflow: hidden; background: #fff;">
-                                <img src="foto.jpg" alt="Azril Akbar Fawji Abdillah" style="width: 100%; height: 100%; object-fit: cover;" onerror="this.src='https://via.placeholder.com/100?text=Foto';">
+                                <img src="foto1.jpg.jfif" alt="Azril Akbar Fawji Abdillah" style="width: 100%; height: 100%; object-fit: cover;" onerror="this.src='https://via.placeholder.com/100?text=Foto';">
                             </div>
                             <h3 class="mb-1 font-weight-bold">Azril Akbar Fawji Abdillah</h3>
                             <p class="text-white-50 mb-0"><i class="fas fa-laptop-code mr-1"></i> Siswa Rekayasa Perangkat Lunak (RPL)</p>
@@ -46,7 +46,7 @@ include 'header.php';
                                     <tr>
                                         <td style="font-weight: 600;"><i class="fas fa-project-diagram text-warning mr-2"></i> Project UKK</td>
                                         <td>:</td>
-                                        <td><strong>Sistem Informasi Pelanggaran Siswa (UKK 2027)</strong></td>
+                                        <td><strong>Sistem Informasi Pelanggaran Siswa (UKK 2026)</strong></td>
                                     </tr>
                                 </tbody>
                             </table>

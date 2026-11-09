@@ -11,7 +11,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $password = $_POST['password'] ?? '';
     $role = $_POST['role'] ?? 'guru';
 
-    $roles_valid = ['admin', 'guru', 'siswa', 'kepsek'];
+    $roles_valid = ['admin', 'petugas', 'guru', 'wali_kelas', 'siswa'];
     if ($nama !== '' && filter_var($email, FILTER_VALIDATE_EMAIL) && $password !== ''
         && strlen($password) >= 8 && in_array($role, $roles_valid, true)) {
         $hash_password = password_hash($password, PASSWORD_DEFAULT);
@@ -27,6 +27,41 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } else {
         $message = "Isi nama, email valid, password minimal 8 karakter, dan role yang tersedia.";
     }
+}
+
+// Handling Edit Pengguna
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_user'])) {
+    $id_edit = (int)($_POST['id'] ?? 0);
+    $nama_edit = trim($_POST['name'] ?? '');
+    $email_edit = trim($_POST['email'] ?? '');
+    $role_edit = $_POST['role'] ?? '';
+    $password_edit = $_POST['password'] ?? '';
+    $roles_valid_edit = ['admin', 'petugas', 'guru', 'wali_kelas', 'siswa'];
+    if ($id_edit > 0 && $nama_edit !== '' && filter_var($email_edit, FILTER_VALIDATE_EMAIL) && in_array($role_edit, $roles_valid_edit, true)) {
+        if ($password_edit !== '' && strlen($password_edit) < 8) {
+            $message = 'Password baru minimal 8 karakter.';
+        } else {
+            if ($password_edit !== '') {
+                $hash = password_hash($password_edit, PASSWORD_DEFAULT);
+                $up = $koneksi->prepare("UPDATE t_users SET name=?, email=?, role=?, password=?, updated_at=NOW() WHERE id=?");
+                $up->bind_param("ssssi", $nama_edit, $email_edit, $role_edit, $hash, $id_edit);
+            } else {
+                $up = $koneksi->prepare("UPDATE t_users SET name=?, email=?, role=?, updated_at=NOW() WHERE id=?");
+                $up->bind_param("sssi", $nama_edit, $email_edit, $role_edit, $id_edit);
+            }
+            if ($up->execute()) { $message = 'Data pengguna berhasil diperbarui.'; unset($_GET['edit']); }
+            else $message = 'Gagal memperbarui pengguna: ' . $up->error;
+            $up->close();
+        }
+    } else $message = 'Data pengguna tidak valid.';
+}
+
+$edit_user_data = null;
+if (isset($_GET['edit'])) {
+    $id_form = (int)$_GET['edit'];
+    $q = $koneksi->prepare("SELECT id, name, email, role FROM t_users WHERE id=?");
+    $q->bind_param("i", $id_form); $q->execute();
+    $edit_user_data = $q->get_result()->fetch_assoc(); $q->close();
 }
 
 // Handling Hapus User
@@ -58,6 +93,18 @@ include 'header.php';
 <?php if ($message): ?>
     <p><b><?= htmlspecialchars($message); ?></b></p>
     <hr>
+<?php endif; ?>
+
+<?php if ($edit_user_data): ?>
+<div class="card shadow-sm mb-4"><div class="card-header"><strong>Edit Pengguna</strong></div><div class="card-body">
+<form method="POST" action="users.php?edit=<?= (int)$edit_user_data['id'] ?>">
+<input type="hidden" name="id" value="<?= (int)$edit_user_data['id'] ?>">
+<div class="form-group"><label>Nama Lengkap</label><input class="form-control" name="name" required value="<?= htmlspecialchars($edit_user_data['name'], ENT_QUOTES, 'UTF-8') ?>"></div>
+<div class="form-group"><label>Email</label><input type="email" class="form-control" name="email" required value="<?= htmlspecialchars($edit_user_data['email'], ENT_QUOTES, 'UTF-8') ?>"></div>
+<div class="form-group"><label>Role / Akses</label><select class="form-control" name="role" required><?php foreach (['admin'=>'Admin','petugas'=>'Petugas BK','guru'=>'Guru','wali_kelas'=>'Wali Kelas','siswa'=>'Siswa'] as $rv=>$rl): ?><option value="<?= $rv ?>" <?= $edit_user_data['role']===$rv?'selected':'' ?>><?= $rl ?></option><?php endforeach; ?></select></div>
+<div class="form-group"><label>Password Baru (opsional)</label><input type="password" class="form-control" name="password" minlength="8" placeholder="Kosongkan jika tidak ingin mengganti password"></div>
+<button type="submit" name="edit_user" class="btn btn-primary">Simpan Perubahan</button> <a href="users.php" class="btn btn-secondary">Batal</a>
+</form></div></div>
 <?php endif; ?>
 
 <!-- Form Tambah User -->
@@ -118,8 +165,9 @@ include 'header.php';
                     <td><?= htmlspecialchars($row['email']); ?></td>
                     <td><b><?= htmlspecialchars($row['role']); ?></b></td>
                     <td>
-                        <?php if ($row['id'] !== ($_SESSION['user_id'] ?? 0)): ?>
-                            <a href="users.php?hapus=<?= $row['id']; ?>" onclick="return confirm('Yakin ingin menghapus pengguna ini?')">Hapus</a>
+                        <a href="users.php?edit=<?= (int)$row['id']; ?>" class="btn btn-warning btn-sm">Edit</a>
+                        <?php if ((int)$row['id'] !== (int)($_SESSION['user_id'] ?? 0)): ?>
+                            <a href="users.php?hapus=<?= $row['id']; ?>" class="btn btn-danger btn-sm" onclick="return confirm('Yakin ingin menghapus pengguna ini?')">Hapus</a>
                         <?php else: ?>
                             <i>(Akun Aktif)</i>
                         <?php endif; ?>

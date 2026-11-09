@@ -110,7 +110,7 @@ $list_kelas = $koneksi->query(
 );
 
 $list_ta = $koneksi->query(
-    "SELECT id, nama FROM t_tahun_ajaran WHERE status_aktif = 1 ORDER BY id DESC"
+    "SELECT id, nama FROM t_tahun_ajaran ORDER BY id DESC"
 );
 
 // Pencarian data penempatan
@@ -166,7 +166,7 @@ include 'header.php';
         : 'Tambah Penempatan Siswa'; ?>
 </h3>
 
-<form method="POST" action="kelas_siswa.php">
+<form method="POST" action="siswa_kelas.php">
     <input type="hidden" name="action"
         value="<?= $edit_data ? 'edit' : 'tambah' ?>">
 
@@ -282,7 +282,7 @@ include 'header.php';
 
 <h3>Daftar Penempatan Siswa</h3>
 
-<form method="GET" action="kelas_siswa.php">
+<form method="GET" action="siswa_kelas.php">
     <input type="text" name="search"
         placeholder="Cari nama, NIS, kelas..."
         value="<?= htmlspecialchars($search) ?>">
