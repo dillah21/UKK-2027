@@ -15,7 +15,7 @@ $pesan_error = '';
 $email = '';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
-    $email = trim($_POST['email'] ?? '');
+    $email = strtolower(trim($_POST['email'] ?? ''));
     $password = $_POST['password'] ?? '';
 
     if ($email === '' || $password === '') {
@@ -23,17 +23,35 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     } elseif (strlen($email) > 190 || strlen($password) > 1024) {
         $pesan_error = 'Input tidak valid.';
     } else {
+        // Pencarian email dibuat toleran terhadap huruf besar/kecil.
+        // bind_result dipakai agar tidak bergantung pada mysqlnd/get_result.
         $stmt = $koneksi->prepare(
             "SELECT id, name, email, password, role
              FROM t_users
-             WHERE email = ?
+             WHERE LOWER(TRIM(email)) = LOWER(?)
              LIMIT 1"
         );
 
         $stmt->bind_param('s', $email);
         $stmt->execute();
-        $result = $stmt->get_result();
-        $user = $result->fetch_assoc();
+        $stmt->bind_result(
+            $user_id,
+            $user_name,
+            $user_email,
+            $user_password,
+            $user_role
+        );
+
+        $user = null;
+        if ($stmt->fetch()) {
+            $user = [
+                'id' => $user_id,
+                'name' => $user_name,
+                'email' => $user_email,
+                'password' => $user_password,
+                'role' => $user_role
+            ];
+        }
         $stmt->close();
 
         $valid = false;
@@ -88,6 +106,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if ($valid) {
             $role = strtolower(trim($user['role'] ?? ''));
+            $role = str_replace('_', ' ', $role);
 
             $roleValid = [
                 'admin',

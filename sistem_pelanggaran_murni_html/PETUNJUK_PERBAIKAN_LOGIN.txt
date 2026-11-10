@@ -1,0 +1,32 @@
+PERBAIKAN LOGIN - SISTEM INFORMASI PELANGGARAN SISWA
+
+Isi:
+1. login.php diperbaiki: pencarian email tidak sensitif huruf besar/kecil dan tidak
+   bergantung pada mysqli_stmt::get_result()/mysqlnd.
+2. Endpoint diagnostik/reset tanpa autentikasi (test_login.php dan reset_password.php)
+   serta seeder demo yang menampilkan password dihapus dari paket.
+3. File aplikasi lainnya dan data database tidak diubah.
+
+LANGKAH PEMASANGAN:
+1. Backup folder aplikasi dan database terlebih dahulu.
+2. Ekstrak ZIP ini, lalu salin isi folder sistem_pelanggaran_murni_html ke folder
+   aplikasi di htdocs (timpa file jika diminta).
+3. Pilihan aman: jalankan file SQL patch PERBAIKAN_AKUN_LOGIN.sql melalui phpMyAdmin
+   pada database db_ukk_2026. Patch hanya memperbarui dua akun uji admin/guru
+   yang memang tercantum di dump SQL yang dikirim. Tidak menghapus tabel/data lain.
+4. Hapus juga test_login.php, reset_password.php, dan seeder_users.php dari server
+   lama bila sebelumnya pernah diunggah.
+5. Buka login.php melalui localhost dan uji akun di bawah.
+
+AKUN UJI (sesuai dump SQL yang dikirim):
+Admin: user1@sekolah.sch.id / password1
+Guru : user2@sekolah.sch.id / password2
+
+Catatan:
+- Kredensial ini hanya benar jika isi database aktif sama dengan dump SQL yang
+  dikirim. Jika data di database aktif berbeda, jalankan patch lalu gunakan akun
+  yang sesuai atau kirim pesan error persisnya.
+- Setelah berhasil masuk, segera ganti password melalui fitur pengelolaan akun
+  aplikasi. Jangan membagikan password kepada orang lain.
+- Konfigurasi koneksi database tetap ada di koneksi.php: localhost, root, password
+  kosong, database db_ukk_2026. Sesuaikan bila konfigurasi server berbeda.
