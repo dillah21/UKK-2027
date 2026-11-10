@@ -321,7 +321,8 @@ if (
 $result_guru = $koneksi->query("
     SELECT *
     FROM t_guru
-    ORDER BY id DESC
+    WHERE id BETWEEN 1 AND 37
+    ORDER BY id ASC
 ");
 
 

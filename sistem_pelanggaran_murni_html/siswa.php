@@ -182,7 +182,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_siswa'])) {
     } else {
 
         $cek_siswa = $koneksi->prepare(
-            "SELECT id FROM t_siswa WHERE id = ?"
+            "SELECT id FROM t_siswa
+             WHERE id = ? AND status_aktif = 1"
         );
 
         $cek_siswa->bind_param('i', $id);
@@ -193,7 +194,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_siswa'])) {
 
         if (!$siswa_ada) {
 
-            $pesan_error = 'Data siswa tidak ditemukan!';
+            $pesan_error = 'Data siswa aktif tidak ditemukan!';
 
         } else {
 
@@ -204,7 +205,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_siswa'])) {
                 $stmt = $koneksi->prepare(
                     "UPDATE t_siswa
                      SET nis = ?, nama = ?, jenis_kelamin = ?
-                     WHERE id = ?"
+                     WHERE id = ? AND status_aktif = 1"
                 );
 
                 $stmt->bind_param('sssi', $nis, $nama, $jk, $id);
@@ -333,7 +334,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_siswa'])) {
 }
 
 // ======================================
-// HAPUS SISWA
+// HAPUS SISWA (SOFT DELETE)
+// Tidak menghapus riwayat pelanggaran
 // ======================================
 if (isset($_GET['action'], $_GET['id'])
     && $_GET['action'] === 'hapus') {
@@ -342,43 +344,21 @@ if (isset($_GET['action'], $_GET['id'])
 
     if ($id_hapus > 0) {
 
-        $koneksi->begin_transaction();
+        $stmt = $koneksi->prepare(
+            "UPDATE t_siswa
+             SET status_aktif = 0
+             WHERE id = ?"
+        );
 
-        try {
+        $stmt->bind_param('i', $id_hapus);
 
-            $stmt = $koneksi->prepare(
-                "DELETE FROM t_kelas_siswa WHERE siswa_id = ?"
-            );
-
-            $stmt->bind_param('i', $id_hapus);
-
-            if (!$stmt->execute()) {
-                throw new Exception($stmt->error);
-            }
-
-            $stmt->close();
-
-            $stmt = $koneksi->prepare(
-                "DELETE FROM t_siswa WHERE id = ?"
-            );
-
-            $stmt->bind_param('i', $id_hapus);
-
-            if (!$stmt->execute()) {
-                throw new Exception($stmt->error);
-            }
-
-            $stmt->close();
-
-            $koneksi->commit();
-
-            $pesan_sukses = 'Data siswa berhasil dihapus!';
-
-        } catch (Exception $e) {
-
-            $koneksi->rollback();
-            $pesan_error = 'Gagal menghapus data siswa: ' . $e->getMessage();
+        if ($stmt->execute()) {
+            $pesan_sukses = 'Siswa berhasil dinonaktifkan. Riwayat pelanggaran tetap tersimpan.';
+        } else {
+            $pesan_error = 'Gagal menonaktifkan siswa: ' . $stmt->error;
         }
+
+        $stmt->close();
     }
 }
 
@@ -392,7 +372,7 @@ $list_kelas = $koneksi->query(
 );
 
 // ======================================
-// AMBIL DATA SISWA
+// AMBIL DATA SISWA AKTIF SAJA
 // ======================================
 $result_siswa = $koneksi->query(
     "SELECT
@@ -407,7 +387,8 @@ $result_siswa = $koneksi->query(
         AND ks.status_aktif = 1
      LEFT JOIN t_kelas k
         ON ks.kelas_id = k.id
-     ORDER BY s.id DESC"
+     WHERE s.status_aktif = 1
+     ORDER BY s.id ASC"
 );
 
 include 'header.php';
@@ -476,7 +457,6 @@ include 'header.php';
                     <?php while ($row = $result_siswa->fetch_assoc()): ?>
 
                         <?php
-
                         $id = (int)$row['id'];
                         $nis = $row['nis'] ?? '';
                         $nama = $row['nama'] ?? '';
@@ -486,14 +466,12 @@ include 'header.php';
                         $label_kelas = '-';
 
                         if ($kelas_id_aktif > 0) {
-
                             $label_kelas = formatKelas(
                                 $row['tingkat_kelas'] ?? '',
                                 $row['jurusan_kelas'] ?? '',
                                 $row['nama_kelas'] ?? ''
                             );
                         }
-
                         ?>
 
                         <tr>
@@ -533,7 +511,7 @@ include 'header.php';
                                         data-toggle="modal"
                                         data-target="#hapusSiswa<?= $id ?>">
 
-                                    <i class="fas fa-trash"></i>
+                                    <i class="fas fa-user-slash"></i>
 
                                 </button>
 
@@ -580,9 +558,7 @@ include 'header.php';
             <div class="modal-body">
 
                 <div class="form-group">
-
                     <label>NIS / No Induk</label>
-
                     <input type="text"
                            name="nis"
                            id="edit_nis"
@@ -590,23 +566,18 @@ include 'header.php';
                            maxlength="15"
                            inputmode="numeric"
                            pattern="[0-9]{0,15}">
-
                 </div>
 
                 <div class="form-group">
-
                     <label>Nama Lengkap Siswa</label>
-
                     <input type="text"
                            name="nama"
                            id="edit_nama"
                            class="form-control"
                            required>
-
                 </div>
 
                 <div class="form-group">
-
                     <label>Kelas</label>
 
                     <select name="kelas_id"
@@ -623,18 +594,15 @@ include 'header.php';
                         );
 
                         if ($kelas_edit):
-
                             while ($kls = $kelas_edit->fetch_assoc()):
                         ?>
 
                             <option value="<?= (int)$kls['id'] ?>">
-
                                 <?= e(formatKelas(
                                     $kls['tingkat'],
                                     $kls['jurusan'],
                                     $kls['nama']
                                 )) ?>
-
                             </option>
 
                         <?php
@@ -643,20 +611,15 @@ include 'header.php';
                         ?>
 
                     </select>
-
                 </div>
 
                 <div class="form-group">
-
                     <label>Jenis Kelamin</label>
 
                     <select name="jk" id="edit_jk" class="form-control">
-
                         <option value="L">Laki-laki</option>
                         <option value="P">Perempuan</option>
-
                     </select>
-
                 </div>
 
             </div>
@@ -666,17 +629,13 @@ include 'header.php';
                 <button type="button"
                         class="btn btn-secondary btn-sm"
                         data-dismiss="modal">
-
                     Batal
-
                 </button>
 
                 <button type="submit"
                         name="edit_siswa"
                         class="btn btn-warning btn-sm">
-
                     Simpan Perubahan
-
                 </button>
 
             </div>
@@ -688,21 +647,20 @@ include 'header.php';
 </div>
 
 <!-- ======================================
-     MODAL HAPUS SISWA
+     MODAL NONAKTIFKAN SISWA
 ====================================== -->
 
 <?php
-
 $result_hapus = $koneksi->query(
-    "SELECT id, nama FROM t_siswa ORDER BY id DESC"
+    "SELECT id, nama
+     FROM t_siswa
+     WHERE status_aktif = 1
+     ORDER BY id ASC"
 );
 
 if ($result_hapus):
-
     while ($hapus = $result_hapus->fetch_assoc()):
-
         $id_hapus_modal = (int)$hapus['id'];
-
 ?>
 
 <div class="modal fade"
@@ -716,22 +674,24 @@ if ($result_hapus):
 
             <div class="modal-header bg-danger text-white">
 
-                <h5 class="modal-title">Hapus Siswa</h5>
+                <h5 class="modal-title">Nonaktifkan Siswa</h5>
 
                 <button type="button"
                         class="close text-white"
                         data-dismiss="modal">
-
                     <span>&times;</span>
-
                 </button>
 
             </div>
 
             <div class="modal-body">
 
-                Yakin ingin menghapus data siswa
+                Yakin ingin menonaktifkan siswa
                 <strong><?= e($hapus['nama']) ?></strong>?
+
+                <p class="text-muted small mt-2 mb-0">
+                    Riwayat pelanggaran siswa tetap disimpan.
+                </p>
 
             </div>
 
@@ -740,17 +700,13 @@ if ($result_hapus):
                 <button type="button"
                         class="btn btn-secondary btn-sm"
                         data-dismiss="modal">
-
                     Batal
-
                 </button>
 
                 <a href="siswa.php?action=hapus&id=<?= $id_hapus_modal ?>"
                    class="btn btn-danger btn-sm"
-                   onclick="return confirm('Yakin ingin menghapus siswa ini?')">
-
-                    Ya, Hapus
-
+                   onclick="return confirm('Yakin ingin menonaktifkan siswa ini?')">
+                    Ya, Nonaktifkan
                 </a>
 
             </div>
@@ -784,9 +740,7 @@ endif;
                 <button type="button"
                         class="close text-white"
                         data-dismiss="modal">
-
                     <span>&times;</span>
-
                 </button>
 
             </div>
@@ -794,7 +748,6 @@ endif;
             <div class="modal-body">
 
                 <div class="form-group">
-
                     <label>NIS / No Induk</label>
 
                     <input type="text"
@@ -803,22 +756,18 @@ endif;
                            maxlength="15"
                            inputmode="numeric"
                            pattern="[0-9]{0,15}">
-
                 </div>
 
                 <div class="form-group">
-
                     <label>Nama Lengkap Siswa</label>
 
                     <input type="text"
                            name="nama"
                            class="form-control"
                            required>
-
                 </div>
 
                 <div class="form-group">
-
                     <label>Kelas</label>
 
                     <select name="kelas_id" class="form-control">
@@ -826,38 +775,29 @@ endif;
                         <option value="0">-- Pilih Kelas --</option>
 
                         <?php if ($list_kelas): ?>
-
                             <?php while ($kls = $list_kelas->fetch_assoc()): ?>
 
                                 <option value="<?= (int)$kls['id'] ?>">
-
                                     <?= e(formatKelas(
                                         $kls['tingkat'],
                                         $kls['jurusan'],
                                         $kls['nama']
                                     )) ?>
-
                                 </option>
 
                             <?php endwhile; ?>
-
                         <?php endif; ?>
 
                     </select>
-
                 </div>
 
                 <div class="form-group">
-
                     <label>Jenis Kelamin</label>
 
                     <select name="jk" class="form-control">
-
                         <option value="L">Laki-laki</option>
                         <option value="P">Perempuan</option>
-
                     </select>
-
                 </div>
 
             </div>
@@ -867,17 +807,13 @@ endif;
                 <button type="button"
                         class="btn btn-secondary btn-sm"
                         data-dismiss="modal">
-
                     Batal
-
                 </button>
 
                 <button type="submit"
                         name="tambah_siswa"
                         class="btn btn-primary btn-sm">
-
                     Simpan
-
                 </button>
 
             </div>
@@ -896,65 +832,43 @@ endif;
 </footer>
 
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-
 <script src="https://cdn.jsdelivr.net/npm/popper.js@1.14.3/dist/umd/popper.min.js"></script>
-
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.1.3/dist/js/bootstrap.min.js"></script>
-
 <script src="https://cdn.datatables.net/1.13.6/js/jquery.dataTables.min.js"></script>
-
 <script src="https://cdn.datatables.net/1.13.6/js/dataTables.bootstrap4.min.js"></script>
 
 <script>
-
 $(document).ready(function () {
 
-    // DATATABLES
     $('#tabelSiswa').DataTable({
 
         language: {
-
             search: 'Cari:',
-
             lengthMenu: 'Tampilkan _MENU_ data per halaman',
-
             zeroRecords: 'Tidak ada data yang ditemukan',
-
             info: 'Menampilkan halaman _PAGE_ dari _PAGES_',
-
             infoEmpty: 'Tidak ada data tersedia',
-
             infoFiltered: '(disaring dari _MAX_ total data)',
 
             paginate: {
-
                 first: 'Pertama',
-
                 last: 'Terakhir',
-
                 next: 'Selanjutnya',
-
                 previous: 'Sebelumnya'
-
             }
-
         }
 
     });
 
-    // FUNGSI EDIT SISWA
+    // EDIT SISWA
     $(document).on('click', '.btn-edit-siswa', function () {
 
         let tombol = $(this);
 
         $('#edit_id').val(tombol.attr('data-id'));
-
         $('#edit_nis').val(tombol.attr('data-nis'));
-
         $('#edit_nama').val(tombol.attr('data-nama'));
-
         $('#edit_jk').val(tombol.attr('data-jk'));
-
         $('#edit_kelas').val(tombol.attr('data-kelas'));
 
         $('#editSiswa').modal('show');
@@ -962,7 +876,6 @@ $(document).ready(function () {
     });
 
 });
-
 </script>
 
 </body>

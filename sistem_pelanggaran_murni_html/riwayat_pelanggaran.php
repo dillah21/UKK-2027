@@ -2,12 +2,14 @@
 require_once 'auth.php';
 require_once 'koneksi.php';
 
-// Handling Filter Siswa & Pencarian
+// Filter server-side tetap tersedia, sedangkan pencarian, pengurutan,
+// dan pagination interaktif disediakan DataTables untuk role Guru.
 $search = trim($_GET['search'] ?? '');
-$filter_siswa_id = intval($_GET['siswa_id'] ?? 0);
+$filter_siswa_id = (int)($_GET['siswa_id'] ?? 0);
 
-// Query Detail Riwayat Pelanggaran
-$sql = "SELECT ps.*, s.nis, s.nama AS nama_siswa, k.nama AS nama_kelas, g.nama AS nama_guru, pk.nama AS nama_kategori
+$sql = "SELECT ps.*, s.nis, s.nama AS nama_siswa,
+               k.nama AS nama_kelas, g.nama AS nama_guru,
+               pk.nama AS nama_kategori
         FROM t_pelanggaran_siswa ps
         JOIN t_siswa s ON ps.siswa_id = s.id
         LEFT JOIN t_kelas k ON ps.kelas_id = k.id
@@ -16,70 +18,138 @@ $sql = "SELECT ps.*, s.nis, s.nama AS nama_siswa, k.nama AS nama_kelas, g.nama A
 
 if ($filter_siswa_id > 0) {
     $sql .= " WHERE ps.siswa_id = " . $filter_siswa_id;
-} elseif (!empty($search)) {
-    $sql .= " WHERE s.nama LIKE '%" . $koneksi->real_escape_string($search) . "%' 
-               OR s.nis LIKE '%" . $koneksi->real_escape_string($search) . "%'";
+} elseif ($search !== '') {
+    $kata = $koneksi->real_escape_string($search);
+    $sql .= " WHERE (s.nama LIKE '%{$kata}%' OR s.nis LIKE '%{$kata}%')";
 }
 
 $sql .= " ORDER BY ps.tanggal DESC, ps.id DESC";
 $result = $koneksi->query($sql);
 
+function riwayat_h($value)
+{
+    return htmlspecialchars((string)($value ?? ''), ENT_QUOTES, 'UTF-8');
+}
+
+$role_halaman = strtolower(trim($_SESSION['role'] ?? ''));
+$gunakan_datatables = ($role_halaman === 'guru');
+
 include 'header.php';
 ?>
 
-<h2>Riwayat Pelanggaran Siswa</h2>
+<div class="container-fluid py-3">
+    <div class="d-flex justify-content-between align-items-center flex-wrap mb-3">
+        <div>
+            <h2 class="mb-1"><i class="fas fa-history text-primary mr-2"></i>Riwayat Pelanggaran Siswa</h2>
+            <p class="text-muted mb-0">Daftar catatan pelanggaran siswa yang telah dicatat.</p>
+        </div>
+        <span class="badge badge-primary px-3 py-2 mt-2 mt-md-0">
+            <?= $result ? (int)$result->num_rows : 0; ?> data
+        </span>
+    </div>
 
-<!-- Form Pencarian -->
-<form method="GET" action="riwayat_pelanggaran.php">
-    <label for="search">Cari Siswa (Nama / NIS):</label>
-    <input type="text" id="search" name="search" placeholder="Masukkan Nama atau NIS..." value="<?= htmlspecialchars($search); ?>">
-    <button type="submit">Cari</button>
-    <?php if (!empty($search) || $filter_siswa_id > 0): ?>
-        <a href="riwayat_pelanggaran.php">Reset Filter</a>
-    <?php endif; ?>
-</form>
-
-<br>
-
-<table border="1" cellpadding="8" cellspacing="0">
-    <thead>
-        <tr>
-            <th>No</th>
-            <th>Tanggal</th>
-            <th>NIS</th>
-            <th>Nama Siswa</th>
-            <th>Kelas</th>
-            <th>Kategori</th>
-            <th>Nama Pelanggaran</th>
-            <th>Poin</th>
-            <th>Tindakan / Pembinaan</th>
-            <th>Status</th>
-            <th>Guru Pelapor</th>
-        </tr>
-    </thead>
-    <tbody>
-        <?php if ($result && $result->num_rows > 0): ?>
-            <?php $no = 1; while ($row = $result->fetch_assoc()): ?>
-                <tr>
-                    <td><?= $no++; ?></td>
-                    <td><?= htmlspecialchars($row['tanggal']); ?></td>
-                    <td><?= htmlspecialchars($row['nis']); ?></td>
-                    <td><?= htmlspecialchars($row['nama_siswa']); ?></td>
-                    <td><?= htmlspecialchars($row['nama_kelas']); ?></td>
-                    <td><?= htmlspecialchars($row['nama_kategori']); ?></td>
-                    <td><?= htmlspecialchars($row['nama_pelanggaran']); ?></td>
-                    <td align="center"><b><?= $row['poin']; ?></b></td>
-                    <td><?= htmlspecialchars($row['tindakan']); ?></td>
-                    <td><?= htmlspecialchars($row['status']); ?></td>
-                    <td><?= htmlspecialchars($row['nama_guru']); ?></td>
-                </tr>
-            <?php endwhile; ?>
-        <?php else: ?>
-            <tr>
-                <td colspan="11" align="center">Belum ada catatan riwayat pelanggaran.</td>
-            </tr>
+    <?php if ($result === false): ?>
+        <div class="alert alert-danger" role="alert">
+            Gagal mengambil data riwayat: <?= riwayat_h($koneksi->error); ?>
+        </div>
+    <?php else: ?>
+        <?php if ($search !== '' || $filter_siswa_id > 0): ?>
+            <div class="alert alert-info d-flex justify-content-between align-items-center flex-wrap">
+                <span>Filter riwayat sedang diterapkan.</span>
+                <a class="btn btn-sm btn-outline-primary mt-2 mt-md-0" href="riwayat_pelanggaran.php">
+                    <i class="fas fa-undo mr-1"></i>Reset Filter
+                </a>
+            </div>
         <?php endif; ?>
-    </tbody>
-</table>
+
+        <div class="card border-0 shadow-sm">
+            <div class="card-body">
+                <div class="table-responsive">
+                    <table id="tabelRiwayat" class="table table-striped table-bordered table-hover mb-0" style="width:100%">
+                        <thead class="thead-light">
+                            <tr>
+                                <th>No</th>
+                                <th>Tanggal</th>
+                                <th>NIS</th>
+                                <th>Nama Siswa</th>
+                                <th>Kelas</th>
+                                <th>Kategori</th>
+                                <th>Jenis Pelanggaran</th>
+                                <th>Poin</th>
+                                <th>Tindakan / Pembinaan</th>
+                                <th>Status</th>
+                                <th>Guru Pelapor</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <?php $no = 1; while ($row = $result->fetch_assoc()): ?>
+                                <tr>
+                                    <td><?= $no++; ?></td>
+                                    <td data-order="<?= riwayat_h($row['tanggal']); ?>"><?= riwayat_h($row['tanggal']); ?></td>
+                                    <td><?= riwayat_h($row['nis']); ?></td>
+                                    <td><?= riwayat_h($row['nama_siswa']); ?></td>
+                                    <td><?= riwayat_h($row['nama_kelas']); ?></td>
+                                    <td><?= riwayat_h($row['nama_kategori']); ?></td>
+                                    <td><?= riwayat_h($row['nama_pelanggaran']); ?></td>
+                                    <td class="text-center"><span class="badge badge-danger"><?= (int)($row['poin'] ?? 0); ?></span></td>
+                                    <td><?= riwayat_h($row['tindakan']); ?></td>
+                                    <td>
+                                        <?php $status = (string)($row['status'] ?? ''); ?>
+                                        <span class="badge <?= $status === 'Selesai' ? 'badge-success' : 'badge-warning'; ?>">
+                                            <?= riwayat_h($status); ?>
+                                        </span>
+                                    </td>
+                                    <td><?= riwayat_h($row['nama_guru']); ?></td>
+                                </tr>
+                            <?php endwhile; ?>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    <?php endif; ?>
+</div>
+
+<?php if ($gunakan_datatables): ?>
+<script>
+(function () {
+    function initTabelRiwayat() {
+        if (!window.jQuery || !jQuery.fn.DataTable || jQuery.fn.dataTable.isDataTable('#tabelRiwayat')) {
+            return;
+        }
+
+        jQuery('#tabelRiwayat').DataTable({
+            pageLength: 10,
+            lengthMenu: [[5, 10, 25, 50, -1], [5, 10, 25, 50, 'Semua']],
+            order: [[1, 'desc']],
+            autoWidth: false,
+            scrollX: true,
+            language: {
+                search: 'Cari riwayat:',
+                searchPlaceholder: 'Nama, NIS, pelanggaran, atau guru...',
+                lengthMenu: 'Tampilkan _MENU_ data',
+                zeroRecords: 'Data riwayat tidak ditemukan',
+                emptyTable: 'Belum ada catatan riwayat pelanggaran',
+                info: 'Menampilkan _START_ sampai _END_ dari _TOTAL_ data',
+                infoEmpty: 'Tidak ada data tersedia',
+                infoFiltered: '(difilter dari _MAX_ total data)',
+                paginate: {
+                    first: 'Pertama',
+                    last: 'Terakhir',
+                    next: 'Selanjutnya',
+                    previous: 'Sebelumnya'
+                }
+            }
+        });
+    }
+
+    if (document.readyState === 'loading') {
+        document.addEventListener('DOMContentLoaded', initTabelRiwayat);
+    } else {
+        initTabelRiwayat();
+    }
+})();
+</script>
+<?php endif; ?>
 
 <?php include 'footer.php'; ?>

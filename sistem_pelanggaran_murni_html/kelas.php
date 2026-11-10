@@ -198,10 +198,13 @@ if (
 // AMBIL DATA KELAS
 // =====================================================
 
+// Hanya tampilkan dua kelas yang digunakan saat ini.
+// Data kelas lain tetap tersimpan utuh di database.
 $result_kelas = $koneksi->query(
     "SELECT id, nama, tingkat, jurusan
      FROM t_kelas
-     ORDER BY id ASC"
+     WHERE UPPER(TRIM(nama)) IN ('12 RPL 1', '12 RPL 2')
+     ORDER BY FIELD(UPPER(TRIM(nama)), '12 RPL 1', '12 RPL 2'), id ASC"
 );
 
 include 'header.php';

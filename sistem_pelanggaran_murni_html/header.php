@@ -21,11 +21,11 @@ $judul_halaman = [
     'wali_kelas.php' => 'Wali Kelas', 'tahun_ajaran.php' => 'Tahun Ajaran',
     'pelanggaran.php' => 'Jenis Pelanggaran', 'pelanggaran_kategori.php' => 'Kategori Pelanggaran',
     'laporan.php' => 'Laporan & Rekap', 'rekap_poin.php' => 'Rekap Poin',
-    'tindak_lanjut.php' => 'Tindak Lanjut BK', 'profile.php' => 'Pengaturan Profil',
+    'tindak_lanjut.php' => 'Tindakan', 'profile.php' => 'Pengaturan Profil',
     'users.php' => 'Manajemen Pengguna', 'log_aktivitas.php' => 'Log Aktivitas',
     'about_me.php' => 'Tentang Saya', 'riwayat_pelanggaran.php' => 'Riwayat Pelanggaran',
     'kelas_siswa.php' => 'Penempatan Siswa', 'siswa_kelas.php' => 'Data Siswa per Kelas',
-    'tambah_pelanggaran.php' => 'Tambah Pelanggaran', 'import_siswa.php' => 'Import Data Siswa'
+    'tambah_pelanggaran.php' => 'Catat Pelanggaran', 'import_siswa.php' => 'Import Data Siswa'
 ];
 $judul_topbar = $judul_halaman[$current_page] ?? ucwords(str_replace(['_', '.php'], [' ', ''], $current_page));
 $tahun_aktif_nav = '';
@@ -327,23 +327,29 @@ if (isset($koneksi) && $koneksi instanceof mysqli) {
 
         <?php elseif ($role === 'guru'): ?>
 
-            <a href="pelanggaran_kategori.php"
-               class="nav-link <?= $current_page === 'pelanggaran_kategori.php' ? 'active' : ''; ?>">
-                <i class="fas fa-tags"></i> Kategori Pelanggaran
+            <a href="tambah_pelanggaran.php"
+               class="nav-link <?= $current_page === 'tambah_pelanggaran.php' ? 'active' : ''; ?>">
+                <i class="fas fa-clipboard-list"></i> Catat Pelanggaran
             </a>
 
-            <a href="pelanggaran.php"
-               class="nav-link <?= $current_page === 'pelanggaran.php' ? 'active' : ''; ?>">
-                <i class="fas fa-exclamation-triangle"></i> Jenis Pelanggaran
+            <a href="tindak_lanjut.php"
+               class="nav-link <?= $current_page === 'tindak_lanjut.php' ? 'active' : ''; ?>">
+                <i class="fas fa-clipboard-check"></i> Tindakan
             </a>
-<a href="laporan.php"
+
+            <a href="riwayat_pelanggaran.php"
+               class="nav-link <?= $current_page === 'riwayat_pelanggaran.php' ? 'active' : ''; ?>">
+                <i class="fas fa-history"></i> Riwayat
+            </a>
+
+            <a href="rekap_poin.php"
+               class="nav-link <?= $current_page === 'rekap_poin.php' ? 'active' : ''; ?>">
+                <i class="fas fa-chart-bar"></i> Rekap Poin
+            </a>
+
+            <a href="laporan.php"
                class="nav-link <?= $current_page === 'laporan.php' ? 'active' : ''; ?>">
                 <i class="fas fa-file-alt"></i> Laporan & Rekap
-            </a>
-
-            <a href="about_me.php"
-               class="nav-link <?= $current_page === 'about_me.php' ? 'active' : ''; ?>">
-                <i class="fas fa-info-circle"></i> Tentang Saya
             </a>
 
             <a href="profile.php"

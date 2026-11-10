@@ -3,8 +3,20 @@ require_once 'auth.php';
 require_once 'koneksi.php';
 
 mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
+$role_login = strtolower(trim($_SESSION['role'] ?? ''));
+$is_guru = ($role_login === 'guru');
 $error = '';
 $success = '';
+
+$pilihan_tindakan = [
+    'Teguran lisan',
+    'Teguran tertulis',
+    'Pembinaan oleh wali kelas',
+    'Pembinaan oleh guru BK',
+    'Pemanggilan orang tua/wali',
+    'Membuat surat pernyataan',
+    'Pembinaan bersama wali kelas dan guru BK'
+        ];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit'])) {
     try {
@@ -14,12 +26,32 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit'])) {
         $guru_id = (int)($_POST['guru_id'] ?? 0);
         $tanggal = trim($_POST['tanggal'] ?? '');
         $keterangan = trim($_POST['keterangan'] ?? '');
+
+        // Untuk role Guru, identitas pelapor diambil dari akun yang sedang login.
+        // Relasi t_guru.user_id mencegah guru memilih nama pelapor lain.
+        if ($is_guru) {
+            $user_id_login = (int)($_SESSION['user_id'] ?? 0);
+            $stmt_guru_login = $koneksi->prepare(
+                "SELECT id FROM t_guru WHERE user_id = ? AND status_aktif = 1 LIMIT 1"
+            );
+            $stmt_guru_login->bind_param('i', $user_id_login);
+            $stmt_guru_login->execute();
+            $guru_login = $stmt_guru_login->get_result()->fetch_assoc();
+            $stmt_guru_login->close();
+
+            if (!$guru_login) {
+                throw new Exception('Akun Guru belum terhubung dengan data Guru aktif. Hubungi administrator.');
+            }
+            $guru_id = (int)$guru_login['id'];
+            $keterangan = '';
+        }
         $tindakan = trim($_POST['tindakan'] ?? '');
+
         $status = trim($_POST['status'] ?? '');
 
         if ($siswa_id <= 0 || $kelas_id <= 0 || $pelanggaran_id <= 0 || $guru_id <= 0 ||
             !preg_match('/^\\d{4}-\\d{2}-\\d{2}$/', $tanggal) ||
-            $keterangan === '' || $tindakan === '' ||
+            (!$is_guru && $keterangan === '') || !in_array($tindakan, $pilihan_tindakan, true) ||
             !in_array($status, ['Proses', 'Selesai'], true)) {
             throw new Exception('Mohon isi semua data dengan benar.');
         }
@@ -96,9 +128,11 @@ include 'header.php';
                 <div class="form-group col-md-4"><label>Siswa</label><select name="siswa_id" class="form-control" required><option value="">-- Pilih Siswa --</option><?php while($r=$siswa_list->fetch_assoc()): ?><option value="<?= (int)$r['id'] ?>"><?= tp_h($r['nis'].' - '.$r['nama']) ?></option><?php endwhile; ?></select></div>
                 <div class="form-group col-md-4"><label>Kelas</label><select name="kelas_id" class="form-control" required><option value="">-- Pilih Kelas --</option><?php while($r=$kelas_list->fetch_assoc()): ?><option value="<?= (int)$r['id'] ?>"><?= tp_h($r['nama']) ?></option><?php endwhile; ?></select></div>
                 <div class="form-group col-md-6"><label>Jenis Pelanggaran</label><select name="pelanggaran_id" class="form-control" required><option value="">-- Pilih Pelanggaran --</option><?php while($r=$pelanggaran_list->fetch_assoc()): ?><option value="<?= (int)$r['id'] ?>"><?= tp_h($r['kode'].' - '.$r['nama'].' ('.$r['poin'].' poin)') ?></option><?php endwhile; ?></select></div>
+                <?php if (!$is_guru): ?>
                 <div class="form-group col-md-6"><label>Guru Pelapor</label><select name="guru_id" class="form-control" required><option value="">-- Pilih Guru --</option><?php while($r=$guru_list->fetch_assoc()): ?><option value="<?= (int)$r['id'] ?>"><?= tp_h($r['nama']) ?></option><?php endwhile; ?></select></div>
                 <div class="form-group col-12"><label>Keterangan / Kronologi</label><textarea name="keterangan" class="form-control" rows="3" required></textarea></div>
-                <div class="form-group col-12"><label>Tindakan Pembinaan</label><textarea name="tindakan" class="form-control" rows="2" required></textarea></div>
+                <?php endif; ?>
+                <div class="form-group col-12"><label>Tindakan Pembinaan</label><select name="tindakan" class="form-control" required><option value="">-- Pilih Tindakan Pembinaan --</option><?php foreach ($pilihan_tindakan as $opsi): ?><option value="<?= tp_h($opsi) ?>"><?= tp_h($opsi) ?></option><?php endforeach; ?></select></div>
                 <div class="form-group col-md-4"><label>Status Pembinaan</label><select name="status" class="form-control" required><option value="Proses">Proses</option><option value="Selesai">Selesai</option></select></div>
             </div>
             <button type="submit" name="submit" class="btn btn-primary">Simpan Data</button>

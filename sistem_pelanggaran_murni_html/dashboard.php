@@ -148,6 +148,11 @@ include 'header.php';
             ],
 
         ];
+        if (strtolower(trim($_SESSION['role'] ?? '')) === 'guru') {
+            $cards = array_values(array_filter($cards, function ($card) {
+                return $card['label'] !== 'Kategori Pelanggaran';
+            }));
+        }
         ?>
 
         <?php foreach ($cards as $card): ?>
@@ -206,10 +211,12 @@ include 'header.php';
                     Data Guru
                 </a>
 
-                <a href="pelanggaran.php"
-                   class="btn btn-outline-danger btn-sm mr-2 mb-2">
-                    Jenis Pelanggaran
-                </a>
+                <?php if (strtolower(trim($_SESSION['role'] ?? '')) !== 'guru'): ?>
+                    <a href="pelanggaran.php"
+                       class="btn btn-outline-danger btn-sm mr-2 mb-2">
+                        Jenis Pelanggaran
+                    </a>
+                <?php endif; ?>
 
 
 

@@ -20,14 +20,12 @@ if ($user_role === 'admin') {
 // Hak akses guru.
 $akses_guru = [
     'dashboard.php',
-    'pelanggaran_kategori.php',
-    'pelanggaran.php',
     'tambah_pelanggaran.php',
     'laporan.php',
     'riwayat_pelanggaran.php',
+    'rekap_poin.php',
     'tindak_lanjut.php',
     'profile.php',
-    'about_me.php',
     'logout.php',
     'cetak_sp.php',
     'export_exel.php'
