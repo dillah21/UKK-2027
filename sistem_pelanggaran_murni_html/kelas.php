@@ -1,4 +1,3 @@
-
 <?php
 if (session_status() === PHP_SESSION_NONE) {
     session_start();
@@ -112,9 +111,7 @@ if (
             $stmt->bind_param("sisi", $nama, $tingkat, $jurusan, $id);
 
             if ($stmt->execute()) {
-                if ($stmt->affected_rows >= 0) {
-                    $pesan_sukses = 'Data kelas berhasil diperbarui!';
-                }
+                $pesan_sukses = 'Data kelas berhasil diperbarui!';
             } else {
                 $pesan_error = 'Gagal memperbarui kelas: ' . $stmt->error;
             }
@@ -146,7 +143,6 @@ if (
         $pesan_error = 'ID kelas tidak valid.';
     } else {
         try {
-            // Periksa apakah kelas masih digunakan siswa
             $cek = $koneksi->prepare(
                 "SELECT COUNT(*) AS total
                  FROM t_kelas_siswa
@@ -195,16 +191,14 @@ if (
 
 
 // =====================================================
-// AMBIL DATA KELAS
+// AMBIL DATA KELAS (Menampilkan semua data RPL, TKJ, BDPM, TSM, TKR)
 // =====================================================
 
-// Hanya tampilkan dua kelas yang digunakan saat ini.
-// Data kelas lain tetap tersimpan utuh di database.
 $result_kelas = $koneksi->query(
     "SELECT id, nama, tingkat, jurusan
      FROM t_kelas
-     WHERE UPPER(TRIM(nama)) IN ('12 RPL 1', '12 RPL 2')
-     ORDER BY FIELD(UPPER(TRIM(nama)), '12 RPL 1', '12 RPL 2'), id ASC"
+     WHERE UPPER(TRIM(jurusan)) IN ('RPL', 'TKJ', 'BDPM', 'TSM', 'TKR')
+     ORDER BY tingkat ASC, jurusan ASC, id ASC"
 );
 
 include 'header.php';
@@ -287,6 +281,8 @@ include 'header.php';
                     <tr>
                         <th style="width:10%">No</th>
                         <th>Nama Kelas</th>
+                        <th style="width:15%">Tingkat</th>
+                        <th style="width:15%">Jurusan</th>
                         <th style="width:20%">Aksi</th>
                     </tr>
 
@@ -294,9 +290,9 @@ include 'header.php';
 
                 <tbody>
 
-                <?php if ($result_kelas): ?>
+                <?php if ($result_kelas && $result_kelas->num_rows > 0): ?>
 
-                    <?php while ($r = $result_kelas->fetch_assoc()): ?>
+                    <?php $no = 1; while ($r = $result_kelas->fetch_assoc()): ?>
 
                         <?php
                         $id = (int)$r['id'];
@@ -314,11 +310,19 @@ include 'header.php';
                         <tr>
 
                             <td class="text-center">
-                                <?= $id ?>
+                                <?= $no++ ?>
                             </td>
 
                             <td>
                                 <?= e($tampil) ?>
+                            </td>
+
+                            <td class="text-center">
+                                <?= e($tingkat) ?>
+                            </td>
+
+                            <td class="text-center">
+                                <span class="badge badge-info"><?= e($jurusan) ?></span>
                             </td>
 
                             <td class="text-center">
@@ -329,7 +333,8 @@ include 'header.php';
                                         data-id="<?= $id ?>"
                                         data-tingkat="<?= $tingkat ?>"
                                         data-jurusan="<?= e($jurusan) ?>"
-                                        data-nama="<?= e($nama) ?>">
+                                        data-nama="<?= e($nama) ?>"
+                                        title="Edit">
 
                                     <i class="fas fa-edit"></i>
 
@@ -340,7 +345,8 @@ include 'header.php';
                                 <button type="button"
                                         class="btn btn-danger btn-sm btn-hapus-kelas"
                                         data-id="<?= $id ?>"
-                                        data-nama="<?= e($tampil) ?>">
+                                        data-nama="<?= e($tampil) ?>"
+                                        title="Hapus">
 
                                     <i class="fas fa-trash"></i>
 
@@ -367,7 +373,6 @@ include 'header.php';
 
 <!-- =====================================================
      MODAL EDIT KELAS
-     DILETAKKAN DI LUAR TABEL
 ===================================================== -->
 
 <div class="modal fade"
@@ -492,7 +497,6 @@ include 'header.php';
 
 <!-- =====================================================
      MODAL HAPUS KELAS
-     DILETAKKAN DI LUAR TABEL
 ===================================================== -->
 
 <div class="modal fade"
@@ -720,10 +724,6 @@ include 'header.php';
 <script>
 $(document).ready(function () {
 
-    // =================================================
-    // DATATABLES
-    // =================================================
-
     $('#tabelKelas').DataTable({
 
         order: [],
@@ -758,63 +758,31 @@ $(document).ready(function () {
 
     });
 
-
-    // =================================================
-    // TOMBOL EDIT KELAS
-    // =================================================
-
     $(document).on('click', '.btn-edit-kelas', function () {
-
         var id = $(this).attr('data-id');
-
         var tingkat = $(this).attr('data-tingkat');
-
         var jurusan = $(this).attr('data-jurusan');
-
         var nama = $(this).attr('data-nama');
 
-
-        // Masukkan data ke modal
         $('#edit_id').val(id);
-
         $('#edit_tingkat').val(tingkat);
-
         $('#edit_jurusan').val(jurusan);
-
         $('#edit_nama_kelas').val(nama);
 
-
-        // Tampilkan modal
         $('#modalEditKelas').modal('show');
-
     });
 
-
-    // =================================================
-    // TOMBOL HAPUS KELAS
-    // =================================================
-
     $(document).on('click', '.btn-hapus-kelas', function () {
-
         var id = $(this).attr('data-id');
-
         var nama = $(this).attr('data-nama');
 
-
-        // Tampilkan nama kelas
         $('#hapus_nama_kelas').text(nama);
-
-
-        // Atur link hapus
         $('#tombolKonfirmasiHapus').attr(
             'href',
             'kelas.php?action=hapus&id=' + encodeURIComponent(id)
         );
 
-
-        // Tampilkan modal hapus
         $('#modalHapusKelas').modal('show');
-
     });
 
 });
