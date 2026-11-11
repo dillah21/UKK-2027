@@ -123,7 +123,8 @@ try {
         SELECT id, nama, tingkat, jurusan
         FROM t_kelas
         WHERE status_aktif = 1
-          AND UPPER(TRIM(jurusan)) IN ('RPL','TKJ','BDPM','TSM','TKR')
+          AND UPPER(TRIM(jurusan)) = 'RPL'
+          AND nama IN ('12 RPL 1', '12 RPL 2')
         ORDER BY tingkat, jurusan, nama
     ");
 
@@ -140,7 +141,8 @@ try {
         SELECT id, nama, nip
         FROM t_guru
         WHERE status_aktif = 1
-        ORDER BY nama
+          AND nip IN ('1980050005', '1980020002')
+        ORDER BY CASE nip WHEN '1980050005' THEN 1 WHEN '1980020002' THEN 2 ELSE 3 END
     ");
 
     while ($row = $res->fetch_assoc()) {
@@ -206,6 +208,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
             if (!$valid_guru) {
                 throw new Exception('Guru tidak aktif atau tidak ditemukan.');
+            }
+
+            // Penugasan admin dibatasi tepat pada dua wali kelas RPL yang ditentukan.
+            $guru_diizinkan = [2, 5];
+            $kelas_diizinkan = array_map('intval', array_column($kelas_list, 'id'));
+            if (!in_array($guru_id, $guru_diizinkan, true) || !in_array($kelas_id, $kelas_diizinkan, true)) {
+                throw new Exception('Hanya Ari Sandriana dan Aldi Maulana untuk kelas 12 RPL 1 dan 12 RPL 2 yang diizinkan.');
+            }
+            if (!$is_edit) {
+                $jumlah_wali = (int)$koneksi->query("SELECT COUNT(*) AS total FROM t_wali_kelas WHERE tahun_ajaran_id = 1 AND guru_id IN (2,5) AND kelas_id IN (6,51)")->fetch_assoc()['total'];
+                if ($jumlah_wali >= 2) {
+                    throw new Exception('Maksimal hanya 2 wali kelas yang dapat didaftarkan.');
+                }
             }
 
             // Cegah kelas memiliki lebih dari satu wali kelas aktif pada tahun ajaran yang sama
@@ -335,7 +350,10 @@ try {
         LEFT JOIN t_tahun_ajaran ta ON ta.id = wk.tahun_ajaran_id
         LEFT JOIN t_kelas k ON k.id = wk.kelas_id
         LEFT JOIN t_guru g ON g.id = wk.guru_id
-        ORDER BY wk.id DESC
+        WHERE wk.tahun_ajaran_id = 1
+          AND wk.guru_id IN (2, 5)
+          AND wk.kelas_id IN (6, 51)
+        ORDER BY CASE wk.guru_id WHEN 5 THEN 1 WHEN 2 THEN 2 ELSE 3 END
     ");
 
     while ($row = $res->fetch_assoc()) {
@@ -355,12 +373,13 @@ include 'header.php';
     <div class="d-flex justify-content-between align-items-center mb-3">
         <h2>Manajemen Wali Kelas</h2>
 
-        <button type="button"
-                class="btn btn-primary"
-                data-toggle="modal"
-                data-target="#modalTambah">
+        <?php if (count($wali_list) < 2): ?>
+        <button type="button" class="btn btn-primary" data-toggle="modal" data-target="#modalTambah">
             + Tambah Wali Kelas
         </button>
+        <?php else: ?>
+        <span class="badge badge-success">Maksimal 2 Wali Kelas</span>
+        <?php endif; ?>
     </div>
 
     <?php if ($pesan_error !== ''): ?>

@@ -21,7 +21,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['update_siswa'])) {
     $kelas_id = intval($_POST['kelas_id'] ?? 0);
     $jk = trim($_POST['jk'] ?? 'L');
 
-    if (!empty($nama) && strlen($nis_raw) <= 15) {
+    $kelas_valid = ($kelas_id <= 0);
+    if ($kelas_id > 0) {
+        $cek_kelas = $koneksi->prepare("SELECT id FROM t_kelas WHERE id = ? AND status_aktif = 1 AND UPPER(TRIM(nama)) IN ('12 RPL 1', '12 RPL 2') LIMIT 1");
+        $cek_kelas->bind_param('i', $kelas_id);
+        $cek_kelas->execute();
+        $kelas_valid = $cek_kelas->get_result()->num_rows > 0;
+        $cek_kelas->close();
+    }
+
+    if (!empty($nama) && strlen($nis_raw) <= 15 && $kelas_valid) {
         $stmt = $koneksi->prepare("UPDATE t_siswa SET nis = ?, nama = ?, jenis_kelamin = ? WHERE id = ?");
         $stmt->bind_param("sssi", $nis, $nama, $jk, $id);
         
@@ -77,7 +86,7 @@ if (!$query_siswa || $query_siswa->num_rows === 0) {
 $row = $query_siswa->fetch_assoc();
 
 // 3. Ambil Pilihan Kelas
-$list_kelas = $koneksi->query("SELECT * FROM t_kelas ORDER BY nama ASC");
+$list_kelas = $koneksi->query("SELECT * FROM t_kelas WHERE UPPER(TRIM(nama)) IN ('12 RPL 1', '12 RPL 2') AND status_aktif = 1 ORDER BY nama ASC");
 
 // Panggil Header Terpusat
 include 'header.php';

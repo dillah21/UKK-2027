@@ -28,6 +28,7 @@ $sql = "
     LEFT JOIN t_siswa s ON p.siswa_id = s.id
     LEFT JOIN t_kelas k ON p.kelas_id = k.id
     LEFT JOIN t_pelanggaran_kategori kat ON p.pelanggaran_kategori_id = kat.id
+    WHERE UPPER(TRIM(COALESCE(k.nama, p.nama_kelas))) IN ('12 RPL 1', '12 RPL 2')
     ORDER BY p.tanggal DESC, p.id DESC
 ";
 

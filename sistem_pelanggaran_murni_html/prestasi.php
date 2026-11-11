@@ -67,15 +67,13 @@ if (file_exists('sidebar.php')) include 'sidebar.php';
                                               FROM prestasi 
                                               JOIN t_siswa ON prestasi.id_siswa = t_siswa.id 
                                               LEFT JOIN t_kelas_siswa ON t_siswa.id = t_kelas_siswa.siswa_id AND t_kelas_siswa.status_aktif = 1
-                                              LEFT JOIN t_kelas ON t_kelas_siswa.kelas_id = t_kelas.id 
+                                              INNER JOIN t_kelas ON t_kelas_siswa.kelas_id = t_kelas.id 
+                                              WHERE UPPER(TRIM(t_kelas.nama)) IN ('12 RPL 1', '12 RPL 2')
                                               ORDER BY prestasi.tanggal DESC";
                                     $result = mysqli_query($koneksi, $query);
                                 } catch (Exception $e) {
                                     try {
-                                        $query_alt = "SELECT prestasi.*, t_siswa.nama AS nama_siswa 
-                                                      FROM prestasi 
-                                                      JOIN t_siswa ON prestasi.id_siswa = t_siswa.id 
-                                                      ORDER BY prestasi.tanggal DESC";
+                                        $query_alt = "SELECT prestasi.*, t_siswa.nama AS nama_siswa, t_kelas.nama AS nama_kelas FROM prestasi JOIN t_siswa ON prestasi.id_siswa = t_siswa.id INNER JOIN t_kelas_siswa ON t_siswa.id = t_kelas_siswa.siswa_id AND t_kelas_siswa.status_aktif = 1 INNER JOIN t_kelas ON t_kelas_siswa.kelas_id = t_kelas.id WHERE UPPER(TRIM(t_kelas.nama)) IN ('12 RPL 1', '12 RPL 2') ORDER BY prestasi.tanggal DESC";
                                         $result = mysqli_query($koneksi, $query_alt);
                                     } catch (Exception $ex) {
                                         $result = false;

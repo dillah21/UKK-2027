@@ -8,7 +8,7 @@ if ($siswa_id <= 0) {
     exit('ID siswa tidak valid.');
 }
 
-$stmt = $koneksi->prepare("SELECT id, nisn, nama FROM t_siswa WHERE id = ? LIMIT 1");
+$stmt = $koneksi->prepare("SELECT s.id, s.nisn, s.nama FROM t_siswa s INNER JOIN t_kelas_siswa ks ON ks.siswa_id=s.id AND ks.status_aktif=1 INNER JOIN t_kelas k ON k.id=ks.kelas_id WHERE s.id = ? AND UPPER(TRIM(k.nama)) IN ('12 RPL 1', '12 RPL 2') ORDER BY ks.id DESC LIMIT 1");
 $stmt->bind_param('i', $siswa_id);
 $stmt->execute();
 $siswa = $stmt->get_result()->fetch_assoc();
@@ -22,7 +22,7 @@ if (!$siswa) {
 $stmt = $koneksi->prepare("
     SELECT p.tanggal, p.nama_pelanggaran, p.poin, p.nama_kelas
     FROM t_pelanggaran_siswa p
-    WHERE p.siswa_id = ?
+    WHERE p.siswa_id = ? AND UPPER(TRIM(p.nama_kelas)) IN ('12 RPL 1', '12 RPL 2')
     ORDER BY p.tanggal ASC, p.id ASC
 ");
 $stmt->bind_param('i', $siswa_id);

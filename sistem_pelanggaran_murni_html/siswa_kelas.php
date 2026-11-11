@@ -106,7 +106,7 @@ $list_siswa = $koneksi->query(
 );
 
 $list_kelas = $koneksi->query(
-    "SELECT id, nama FROM t_kelas ORDER BY nama ASC"
+    "SELECT id, nama FROM t_kelas WHERE UPPER(TRIM(nama)) IN ('12 RPL 1', '12 RPL 2') ORDER BY nama ASC"
 );
 
 $list_ta = $koneksi->query(
@@ -126,13 +126,11 @@ $sql = "SELECT
         JOIN t_siswa s ON ks.siswa_id = s.id
         JOIN t_kelas k ON ks.kelas_id = k.id
         JOIN t_tahun_ajaran ta
-            ON ks.tahun_ajaran_id = ta.id";
+            ON ks.tahun_ajaran_id = ta.id
+        WHERE UPPER(TRIM(k.nama)) IN ('12 RPL 1', '12 RPL 2')";
 
 if ($search !== '') {
-    $sql .= " WHERE s.nama LIKE ?
-              OR s.nis LIKE ?
-              OR k.nama LIKE ?
-              OR ta.nama LIKE ?
+    $sql .= " AND (s.nama LIKE ? OR s.nis LIKE ? OR k.nama LIKE ? OR ta.nama LIKE ?)
               ORDER BY ks.id DESC";
 
     $param = "%{$search}%";

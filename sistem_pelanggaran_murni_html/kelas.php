@@ -12,7 +12,7 @@ require_once 'koneksi.php';
 $pesan_sukses = '';
 $pesan_error = '';
 
-$daftar_jurusan = ['RPL', 'TKJ', 'BDPM', 'TSM', 'TKR'];
+$daftar_jurusan = ['RPL']; // Menu Admin menampilkan ringkasan tetap 10/11/12 RPL.
 
 function e($value) {
     return htmlspecialchars((string)($value ?? ''), ENT_QUOTES, 'UTF-8');
@@ -191,14 +191,13 @@ if (
 
 
 // =====================================================
-// AMBIL DATA KELAS (Menampilkan semua data RPL, TKJ, BDPM, TSM, TKR)
-// =====================================================
-
+// Tampilan Data Kelas hanya menampilkan dua rombel yang digunakan.
+// Data kelas lainnya tetap tersimpan di database dan tidak dihapus.
 $result_kelas = $koneksi->query(
-    "SELECT id, nama, tingkat, jurusan
-     FROM t_kelas
-     WHERE UPPER(TRIM(jurusan)) IN ('RPL', 'TKJ', 'BDPM', 'TSM', 'TKR')
-     ORDER BY tingkat ASC, jurusan ASC, id ASC"
+    "SELECT k.id, k.nama, k.tingkat, k.jurusan
+     FROM t_kelas k
+     WHERE UPPER(TRIM(k.nama)) IN ('12 RPL 1', '12 RPL 2')
+     ORDER BY k.nama ASC"
 );
 
 include 'header.php';
@@ -209,15 +208,7 @@ include 'header.php';
 
     <h1 class="h2">Manajemen Data Kelas</h1>
 
-    <button type="button"
-            class="btn btn-primary btn-sm"
-            data-toggle="modal"
-            data-target="#modalKelas">
-
-        <i class="fas fa-plus mr-1"></i>
-        Tambah Kelas Baru
-
-    </button>
+    <span class="badge badge-primary">2 Kelas RPL</span>
 
 </div>
 
@@ -300,11 +291,7 @@ include 'header.php';
                         $jurusan = strtoupper(trim($r['jurusan'] ?? ''));
                         $nama = $r['nama'] ?? '';
 
-                        $tampil = namaKelas(
-                            $tingkat,
-                            $jurusan,
-                            $nama
-                        );
+                        $tampil = $tingkat . ' RPL';
                         ?>
 
                         <tr>
@@ -326,32 +313,7 @@ include 'header.php';
                             </td>
 
                             <td class="text-center">
-
-                                <!-- TOMBOL EDIT -->
-                                <button type="button"
-                                        class="btn btn-warning btn-sm btn-edit-kelas"
-                                        data-id="<?= $id ?>"
-                                        data-tingkat="<?= $tingkat ?>"
-                                        data-jurusan="<?= e($jurusan) ?>"
-                                        data-nama="<?= e($nama) ?>"
-                                        title="Edit">
-
-                                    <i class="fas fa-edit"></i>
-
-                                </button>
-
-
-                                <!-- TOMBOL HAPUS -->
-                                <button type="button"
-                                        class="btn btn-danger btn-sm btn-hapus-kelas"
-                                        data-id="<?= $id ?>"
-                                        data-nama="<?= e($tampil) ?>"
-                                        title="Hapus">
-
-                                    <i class="fas fa-trash"></i>
-
-                                </button>
-
+                                <span class="text-muted">Tetap</span>
                             </td>
 
                         </tr>

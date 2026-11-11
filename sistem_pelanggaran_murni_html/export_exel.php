@@ -16,27 +16,27 @@ if ($tgl_mulai !== '' && $tgl_selesai !== '' && $tgl_selesai < $tgl_mulai) {
     exit('Tanggal selesai tidak boleh sebelum tanggal mulai.');
 }
 
-$sql = "SELECT id, tanggal, nama_siswa, nama_kelas, nama_pelanggaran, poin
-        FROM t_pelanggaran_siswa WHERE 1=1";
+$sql = "SELECT ps.id, ps.tanggal, ps.nama_siswa, ps.nama_kelas, ps.nama_pelanggaran, ps.poin
+        FROM t_pelanggaran_siswa ps INNER JOIN t_kelas k ON k.id = ps.kelas_id WHERE UPPER(TRIM(k.nama)) IN ('12 RPL 1', '12 RPL 2')";
 $types = '';
 $params = [];
 
 if ($tgl_mulai !== '') {
-    $sql .= " AND tanggal >= ?";
+    $sql .= " AND ps.tanggal >= ?";
     $types .= 's';
     $params[] = $tgl_mulai;
 }
 if ($tgl_selesai !== '') {
-    $sql .= " AND tanggal <= ?";
+    $sql .= " AND ps.tanggal <= ?";
     $types .= 's';
     $params[] = $tgl_selesai;
 }
 if ($kelas_id > 0) {
-    $sql .= " AND kelas_id = ?";
+    $sql .= " AND ps.kelas_id = ?";
     $types .= 'i';
     $params[] = $kelas_id;
 }
-$sql .= " ORDER BY tanggal DESC, id DESC";
+$sql .= " ORDER BY ps.tanggal DESC, ps.id DESC";
 
 $stmt = $koneksi->prepare($sql);
 if ($types !== '') {

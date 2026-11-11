@@ -26,13 +26,15 @@ function e($nilai)
     return htmlspecialchars((string)($nilai ?? ''), ENT_QUOTES, 'UTF-8');
 }
 
-// Hitung poin per siswa terlebih dahulu agar poin tidak terduplikasi
+// Hitung poin per siswa terlebih dahulu agar poin tidak terduplikasi.
+// Untuk role Guru, kelas yang ditampilkan mengikuti penempatan kelas aktif tahun ajaran aktif.
+$user_role_rekap = strtolower(trim($_SESSION['role'] ?? ''));
 $sql = "
     SELECT
         s.id,
         s.nisn,
         s.nama AS nama_siswa,
-        COALESCE(k.nama, lp.nama_kelas, 'Belum Ada Kelas') AS nama_kelas,
+        COALESCE(k_aktif.nama, 'Belum Ada Kelas') AS nama_kelas,
         COALESCE(rp.total_poin, 0) AS total_poin
     FROM t_siswa s
     LEFT JOIN (
@@ -50,9 +52,21 @@ $sql = "
         ) p2 ON p1.siswa_id = p2.siswa_id AND p1.id = p2.id_terakhir
     ) lp ON s.id = lp.siswa_id
     LEFT JOIN t_kelas k ON lp.kelas_id = k.id
-    ORDER BY total_poin DESC, s.nama ASC
+    LEFT JOIN (
+        SELECT ks.siswa_id, MAX(ks.id) AS id_terakhir
+        FROM t_kelas_siswa ks
+        INNER JOIN t_tahun_ajaran ta ON ta.id = ks.tahun_ajaran_id
+        WHERE ks.status_aktif = 1 AND ta.status_aktif = 1
+        GROUP BY ks.siswa_id
+    ) kelas_aktif_terakhir ON kelas_aktif_terakhir.siswa_id = s.id
+    LEFT JOIN t_kelas_siswa ks_aktif ON ks_aktif.id = kelas_aktif_terakhir.id_terakhir
+    LEFT JOIN t_kelas k_aktif ON k_aktif.id = ks_aktif.kelas_id
 ";
 
+// Semua role hanya menampilkan siswa dari dua kelas yang digunakan.
+$sql .= " WHERE UPPER(TRIM(k_aktif.nama)) IN ('12 RPL 1', '12 RPL 2')";
+
+$sql .= " ORDER BY total_poin DESC, s.nama ASC";
 $result = $koneksi->query($sql);
 
 include 'header.php';

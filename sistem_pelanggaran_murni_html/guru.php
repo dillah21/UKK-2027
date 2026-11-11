@@ -32,16 +32,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['tambah_guru'])) {
     $nip = preg_replace('/\D+/', '', $nip_raw);
     $nama = trim($_POST['nama'] ?? '');
     $email = trim($_POST['email'] ?? '');
+    $password_input = (string)($_POST['password'] ?? '');
 
     if (
         $nama === '' ||
+        $password_input === '' || strlen($password_input) < 6 ||
         strlen($nip_raw) > 15 ||
         ($nip_raw !== '' && strlen($nip) !== strlen($nip_raw))
     ) {
 
         $pesan_error = strlen($nip_raw) > 15
             ? 'NIP maksimal 15 digit!'
-            : 'Nama wajib diisi dan NIP hanya boleh berisi angka.';
+            : ($password_input === '' ? 'Password wajib diisi.' : (strlen($password_input) < 6 ? 'Password minimal 6 karakter.' : 'Nama wajib diisi dan NIP hanya boleh berisi angka.'));
 
     } else {
 
@@ -54,8 +56,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['tambah_guru'])) {
                 $email = 'guru.' . $suffix . '@sekolah.sch.id';
             }
 
-            $password_sementara = bin2hex(random_bytes(6));
-            $hash = password_hash($password_sementara, PASSWORD_DEFAULT);
+            $hash = password_hash($password_input, PASSWORD_DEFAULT);
             $token = bin2hex(random_bytes(20));
 
 
@@ -88,10 +89,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['tambah_guru'])) {
 
             $koneksi->commit();
 
-            $pesan_sukses = 'Guru berhasil ditambahkan. Email: '
-                . $email
-                . ' | Password sementara: '
-                . $password_sementara;
+            $pesan_sukses = 'Guru berhasil ditambahkan. Email: ' . $email;
 
         } catch (Throwable $e) {
 
@@ -158,7 +156,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_guru'])) {
             $stmt->close();
 
 
-            // UPDATE AKUN PENGGUNA (t_users)
+            // Sinkronkan akun hanya jika user_id benar-benar menunjuk akun ber-role guru.
+            // Data guru lama pada database dapat terhubung ke akun admin/siswa/wali kelas.
+            // Akun selain guru tidak boleh ikut berubah saat profil guru diedit.
             if (!empty($data_guru['user_id'])) {
                 $user = $koneksi->prepare("
                     UPDATE t_users
@@ -166,6 +166,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_guru'])) {
                         email = ?,
                         updated_at = NOW()
                     WHERE id = ?
+                      AND LOWER(TRIM(role)) = 'guru'
                 ");
                 $user->bind_param('ssi', $nama, $email, $data_guru['user_id']);
                 $user->execute();
@@ -235,9 +236,14 @@ if (
                 $hapus->execute();
                 $hapus->close();
 
-                // HAPUS USER TERKAIT JIKA ADA
+                // Hapus akun hanya jika akun terkait memang ber-role guru.
+                // Jangan sampai akun admin atau role lain terhapus akibat relasi data lama.
                 if (!empty($res_user['user_id'])) {
-                    $hapus_user = $koneksi->prepare("DELETE FROM t_users WHERE id = ?");
+                    $hapus_user = $koneksi->prepare("
+                        DELETE FROM t_users
+                        WHERE id = ?
+                          AND LOWER(TRIM(role)) = 'guru'
+                    ");
                     $hapus_user->bind_param('i', $res_user['user_id']);
                     $hapus_user->execute();
                     $hapus_user->close();
@@ -262,9 +268,14 @@ if (
 // =====================================================
 
 $result_guru = $koneksi->query("
-    SELECT *
-    FROM t_guru
-    ORDER BY id ASC
+    SELECT g.*,
+           CASE
+               WHEN u.id IS NOT NULL AND u.password IS NOT NULL AND u.password <> '' THEN 1
+               ELSE 0
+           END AS password_tersedia
+    FROM t_guru g
+    LEFT JOIN t_users u ON u.id = g.user_id
+    ORDER BY g.id ASC
 ");
 
 
@@ -322,6 +333,7 @@ include 'header.php';
                         <th style="width:20%;">NIP / NIK</th>
                         <th>Nama Lengkap Guru</th>
                         <th>Email</th>
+                        <th style="width:15%;">Password</th>
                         <th style="width:15%;">Aksi</th>
                     </tr>
                 </thead>
@@ -334,12 +346,22 @@ include 'header.php';
                         $nip_asli = $r['nip'] ?? $r['nik'] ?? '';
                         $nama_asli = $r['nama'] ?? $r['nama_guru'] ?? '';
                         $email_asli = $r['email'] ?? '';
+                        $password_tersedia = (int)($r['password_tersedia'] ?? 0) === 1;
                     ?>
                         <tr>
                             <td class="text-center"><?= $no++ ?></td>
                             <td class="text-center"><?= $nip_asli !== '' ? e($nip_asli) : '-' ?></td>
                             <td><?= e($nama_asli) ?></td>
                             <td><?= e($email_asli) ?></td>
+                            <td class="text-center">
+                                <?php if ($password_tersedia): ?>
+                                    <span class="text-success" title="Password tersimpan di database">
+                                        <i class="fas fa-lock mr-1"></i>••••••••
+                                    </span>
+                                <?php else: ?>
+                                    <span class="text-muted">Belum ada akun</span>
+                                <?php endif; ?>
+                            </td>
                             <td class="text-center">
                                 <!-- TOMBOL EDIT -->
                                 <button
@@ -475,6 +497,11 @@ include 'header.php';
                 <div class="form-group">
                     <label>Email <span class="text-danger">*</span></label>
                     <input type="email" name="email" class="form-control" placeholder="email@sekolah.sch.id" required>
+                </div>
+                <div class="form-group">
+                    <label>Password <span class="text-danger">*</span></label>
+                    <input type="password" name="password" class="form-control" placeholder="Masukkan password akun guru" minlength="6" required autocomplete="new-password">
+                    <small class="form-text text-muted">Password minimal 6 karakter.</small>
                 </div>
             </div>
             <div class="modal-footer">

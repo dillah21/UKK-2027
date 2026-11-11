@@ -33,6 +33,24 @@ function formatKelas($tingkat, $jurusan, $nama) {
     ));
 }
 
+// Semua role dibatasi pada dua rombel kelas 12 RPL.
+function kelasAdminDiizinkan($koneksi, $kelas_id) {
+    $stmt = $koneksi->prepare(
+        "SELECT id FROM t_kelas
+         WHERE id = ?
+           AND tingkat = 12
+           AND UPPER(TRIM(jurusan)) = 'RPL'
+           AND TRIM(nama) IN ('12 RPL 1', '12 RPL 2')
+           AND status_aktif = 1
+         LIMIT 1"
+    );
+    $stmt->bind_param('i', $kelas_id);
+    $stmt->execute();
+    $valid = $stmt->get_result()->num_rows > 0;
+    $stmt->close();
+    return $valid;
+}
+
 // TAHUN AJARAN AKTIF
 function getTahunAjaranAktif($koneksi) {
     $result = $koneksi->query(
@@ -58,11 +76,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['tambah_siswa'])) {
     $nis = preg_replace('/\D+/', '', $nis_raw);
     $nama = trim($_POST['nama'] ?? '');
     $kelas_id = (int)($_POST['kelas_id'] ?? 0);
+    if ($kelas_id > 0 && !kelasAdminDiizinkan($koneksi, $kelas_id)) {
+        $pesan_error = 'Hanya kelas 12 RPL 1 atau 12 RPL 2 yang dapat dipilih.';
+    }
     $jk = $_POST['jk'] ?? 'L';
     $tanggal_lahir = trim($_POST['tanggal_lahir'] ?? '2008-01-01');
     $alamat = trim($_POST['alamat'] ?? '-');
 
-    if (strlen($nis_raw) > 15) {
+    if ($pesan_error !== '') {
+        // Validasi khusus role Admin sudah menetapkan pesan error.
+    } elseif (strlen($nis_raw) > 15) {
         $pesan_error = 'NIS maksimal 15 digit!';
     } elseif ($nama === '') {
         $pesan_error = 'Nama siswa tidak boleh kosong!';
@@ -166,11 +189,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_siswa'])) {
     $nis = preg_replace('/\D+/', '', $nis_raw);
     $nama = trim($_POST['nama'] ?? '');
     $kelas_id = (int)($_POST['kelas_id'] ?? 0);
+    if ($kelas_id > 0 && !kelasAdminDiizinkan($koneksi, $kelas_id)) {
+        $pesan_error = 'Hanya kelas 12 RPL 1 atau 12 RPL 2 yang dapat dipilih.';
+    }
     $jk = $_POST['jk'] ?? 'L';
     $tanggal_lahir = trim($_POST['tanggal_lahir'] ?? '2008-01-01');
     $alamat = trim($_POST['alamat'] ?? '-');
 
-    if ($id <= 0 || $nama === '' || strlen($nis_raw) > 15) {
+    if ($pesan_error !== '') {
+        // Validasi khusus role Admin sudah menetapkan pesan error.
+    } elseif ($id <= 0 || $nama === '' || strlen($nis_raw) > 15) {
         $pesan_error = strlen($nis_raw) > 15 ? 'NIS maksimal 15 digit!' : 'Data siswa tidak valid!';
     } elseif (!in_array($jk, ['L', 'P'], true)) {
         $pesan_error = 'Jenis kelamin tidak valid!';
@@ -298,24 +326,20 @@ if (isset($_GET['action'], $_GET['id']) && $_GET['action'] === 'hapus') {
 // ======================================
 // AMBIL DATA KELAS & SISWA
 // ======================================
+// Semua role hanya menampilkan siswa dan pilihan kelas dari 12 RPL 1 serta 12 RPL 2.
 $list_kelas = $koneksi->query(
-    "SELECT id, nama, tingkat, jurusan FROM t_kelas ORDER BY tingkat, jurusan, nama"
+    "SELECT id, nama, tingkat, jurusan FROM t_kelas
+     WHERE UPPER(TRIM(nama)) IN ('12 RPL 1', '12 RPL 2') AND status_aktif = 1
+     ORDER BY nama ASC"
 );
-
 $result_siswa = $koneksi->query(
-    "SELECT
-        s.*,
-        k.id AS kelas_id,
-        k.nama AS nama_kelas,
-        k.tingkat AS tingkat_kelas,
-        k.jurusan AS jurusan_kelas
+    "SELECT s.*, k.id AS kelas_id, k.nama AS nama_kelas,
+            k.tingkat AS tingkat_kelas, k.jurusan AS jurusan_kelas
      FROM t_siswa s
-     LEFT JOIN t_kelas_siswa ks
-        ON s.id = ks.siswa_id AND ks.status_aktif = 1
-     LEFT JOIN t_kelas k
-        ON ks.kelas_id = k.id
-     WHERE s.status_aktif = 1
-     ORDER BY s.id ASC"
+     INNER JOIN t_kelas_siswa ks ON s.id = ks.siswa_id AND ks.status_aktif = 1
+     INNER JOIN t_kelas k ON ks.kelas_id = k.id
+     WHERE s.status_aktif = 1 AND UPPER(TRIM(k.nama)) IN ('12 RPL 1', '12 RPL 2')
+     ORDER BY k.nama ASC, s.nama ASC"
 );
 
 include 'header.php';
@@ -446,7 +470,7 @@ include 'header.php';
                     <select name="kelas_id" id="edit_kelas" class="form-control">
                         <option value="0">-- Pilih Kelas --</option>
                         <?php
-                        $kelas_edit = $koneksi->query("SELECT id, nama, tingkat, jurusan FROM t_kelas ORDER BY tingkat, jurusan, nama");
+                        $kelas_edit = $koneksi->query("SELECT id, nama, tingkat, jurusan FROM t_kelas WHERE UPPER(TRIM(nama)) IN ('12 RPL 1', '12 RPL 2') ORDER BY nama");
                         if ($kelas_edit):
                             while ($kls = $kelas_edit->fetch_assoc()):
                         ?>

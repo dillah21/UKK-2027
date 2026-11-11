@@ -49,14 +49,15 @@ if (file_exists('sidebar.php')) include 'sidebar.php';
                                     $query_siswa = "SELECT t_siswa.id, t_siswa.nama, t_kelas.nama AS nama_kelas 
                                                     FROM t_siswa 
                                                     LEFT JOIN t_kelas_siswa ON t_siswa.id = t_kelas_siswa.siswa_id AND t_kelas_siswa.status_aktif = 1
-                                                    LEFT JOIN t_kelas ON t_kelas_siswa.kelas_id = t_kelas.id
+                                                    INNER JOIN t_kelas ON t_kelas_siswa.kelas_id = t_kelas.id
+                                                    WHERE UPPER(TRIM(t_kelas.nama)) IN ('12 RPL 1', '12 RPL 2')
                                                     ORDER BY t_siswa.nama ASC";
                                     
                                     $result_siswa = mysqli_query($koneksi, $query_siswa);
 
                                     // Fallback jika relasi tabel kelas berbeda
                                     if (!$result_siswa || mysqli_num_rows($result_siswa) == 0) {
-                                        $result_siswa = mysqli_query($koneksi, "SELECT id, nama FROM t_siswa ORDER BY nama ASC");
+                                        $result_siswa = mysqli_query($koneksi, "SELECT s.id, s.nama FROM t_siswa s INNER JOIN t_kelas_siswa ks ON ks.siswa_id=s.id AND ks.status_aktif=1 INNER JOIN t_kelas k ON k.id=ks.kelas_id WHERE UPPER(TRIM(k.nama)) IN ('12 RPL 1', '12 RPL 2') ORDER BY s.nama ASC");
                                     }
 
                                     if ($result_siswa && mysqli_num_rows($result_siswa) > 0) {

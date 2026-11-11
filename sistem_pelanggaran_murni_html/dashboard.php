@@ -94,6 +94,8 @@ $pelanggaran = dashboard_rows($koneksi, "
     FROM t_pelanggaran_siswa p
     LEFT JOIN t_pelanggaran_kategori kat
         ON p.pelanggaran_kategori_id = kat.id
+    LEFT JOIN t_kelas k ON k.id = p.kelas_id
+    WHERE UPPER(TRIM(COALESCE(k.nama, p.nama_kelas))) IN ('12 RPL 1', '12 RPL 2')
     ORDER BY p.tanggal DESC, p.id DESC
     LIMIT 5
 ");

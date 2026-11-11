@@ -6,7 +6,7 @@ if (session_status() === PHP_SESSION_NONE) {
 
 $role = strtolower(trim($_SESSION['role'] ?? ''));
 $current_page = basename($_SERVER['PHP_SELF']);
-$nama_user = $_SESSION['nama'] ?? $_SESSION['username'] ?? 'Pengguna';
+$nama_user = ($role === 'admin') ? 'AZRIL' : ($_SESSION['nama'] ?? $_SESSION['username'] ?? 'Pengguna');
 $nama_user = trim((string)$nama_user) !== '' ? trim((string)$nama_user) : 'Pengguna';
 $inisial_user = '';
 foreach (preg_split('/\s+/', $nama_user) as $bagian_nama) {

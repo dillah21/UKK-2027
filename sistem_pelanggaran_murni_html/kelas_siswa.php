@@ -62,7 +62,7 @@ if (isset($_GET['edit'])) {
 
 // Data Referensi untuk Dropdown (Siswa, Kelas, Tahun Ajaran)
 $list_siswa = $koneksi->query("SELECT id, nis, nama FROM t_siswa ORDER BY nama ASC");
-$list_kelas = $koneksi->query("SELECT id, nama FROM t_kelas ORDER BY nama ASC");
+$list_kelas = $koneksi->query("SELECT id, nama FROM t_kelas WHERE UPPER(TRIM(nama)) IN ('12 RPL 1', '12 RPL 2') ORDER BY nama ASC");
 $list_ta = $koneksi->query("SELECT id, nama FROM t_tahun_ajaran ORDER BY id DESC");
 
 // Handling Pencarian & Fetch Data dengan JOIN
@@ -71,10 +71,11 @@ $sql = "SELECT ks.*, s.nama AS nama_siswa, s.nis, k.nama AS nama_kelas, ta.nama 
         FROM t_kelas_siswa ks
         JOIN t_siswa s ON ks.siswa_id = s.id
         JOIN t_kelas k ON ks.kelas_id = k.id
-        JOIN t_tahun_ajaran ta ON ks.tahun_ajaran_id = ta.id";
+        JOIN t_tahun_ajaran ta ON ks.tahun_ajaran_id = ta.id
+        WHERE UPPER(TRIM(k.nama)) IN ('12 RPL 1', '12 RPL 2')";
 
 if (!empty($search)) {
-    $sql .= " WHERE s.nama LIKE ? OR s.nis LIKE ? OR k.nama LIKE ? OR ta.nama LIKE ? ORDER BY ks.id DESC";
+    $sql .= " AND (s.nama LIKE ? OR s.nis LIKE ? OR k.nama LIKE ? OR ta.nama LIKE ?) ORDER BY ks.id DESC";
     $param = "%" . $search . "%";
     $stmt = $koneksi->prepare($sql);
     $stmt->bind_param("ssss", $param, $param, $param, $param);

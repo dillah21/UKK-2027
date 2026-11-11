@@ -16,13 +16,24 @@ $sql = "SELECT ps.*, s.nis, s.nama AS nama_siswa,
         LEFT JOIN t_guru g ON ps.guru_id = g.id
         LEFT JOIN t_pelanggaran_kategori pk ON ps.pelanggaran_kategori_id = pk.id";
 
-if ($filter_siswa_id > 0) {
-    $sql .= " WHERE ps.siswa_id = " . $filter_siswa_id;
-} elseif ($search !== '') {
-    $kata = $koneksi->real_escape_string($search);
-    $sql .= " WHERE (s.nama LIKE '%{$kata}%' OR s.nis LIKE '%{$kata}%')";
+$role_halaman = strtolower(trim($_SESSION['role'] ?? ''));
+$kondisi = ["UPPER(TRIM(COALESCE(k.nama, ps.nama_kelas))) IN ('12 RPL 1', '12 RPL 2')"];
+if ($role_halaman === 'guru') {
+    $user_id_riwayat = (int)($_SESSION['user_id'] ?? 0);
+    $qguru_riwayat = $koneksi->prepare("SELECT id FROM t_guru WHERE user_id = ? AND status_aktif = 1 LIMIT 1");
+    $qguru_riwayat->bind_param('i', $user_id_riwayat);
+    $qguru_riwayat->execute();
+    $guru_riwayat = $qguru_riwayat->get_result()->fetch_assoc();
+    $qguru_riwayat->close();
+    $guru_id_riwayat = (int)($guru_riwayat['id'] ?? 0);
+    $kondisi[] = "ps.guru_id = " . $guru_id_riwayat;
 }
-
+if ($filter_siswa_id > 0) $kondisi[] = "ps.siswa_id = " . $filter_siswa_id;
+if ($search !== '') {
+    $kata = $koneksi->real_escape_string($search);
+    $kondisi[] = "(s.nama LIKE '%{$kata}%' OR s.nis LIKE '%{$kata}%' OR ps.nama_pelanggaran LIKE '%{$kata}%')";
+}
+if ($kondisi) $sql .= " WHERE " . implode(' AND ', $kondisi);
 $sql .= " ORDER BY ps.tanggal DESC, ps.id DESC";
 $result = $koneksi->query($sql);
 
@@ -31,7 +42,6 @@ function riwayat_h($value)
     return htmlspecialchars((string)($value ?? ''), ENT_QUOTES, 'UTF-8');
 }
 
-$role_halaman = strtolower(trim($_SESSION['role'] ?? ''));
 $gunakan_datatables = ($role_halaman === 'guru');
 
 include 'header.php';
