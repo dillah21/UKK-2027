@@ -9,15 +9,20 @@ $role_login = strtolower(trim($_SESSION['role'] ?? ''));
 $is_guru = ($role_login === 'guru');
 $user_id_login = (int)($_SESSION['user_id'] ?? 0);
 $guru_id_login = 0;
+$nama_guru_login = '';
+$show_guru_pelapor = false;
 
 if ($is_guru) {
-    $qg = $koneksi->prepare("SELECT id FROM t_guru WHERE user_id = ? AND status_aktif = 1 LIMIT 1");
+    $qg = $koneksi->prepare("SELECT id, nama FROM t_guru WHERE user_id = ? AND status_aktif = 1 LIMIT 1");
     $qg->bind_param('i', $user_id_login);
     $qg->execute();
     $g = $qg->get_result()->fetch_assoc();
     $qg->close();
 
     $guru_id_login = (int)($g['id'] ?? 0);
+    $nama_guru_login = trim((string)($g['nama'] ?? ''));
+    $show_guru_pelapor = (strcasecmp($nama_guru_login, 'Ari Sandriana, S.Kom') === 0
+        || strcasecmp($nama_guru_login, 'Ari Sandriana') === 0);
 }
 
 $pilihan_tindakan = [
@@ -212,7 +217,12 @@ include 'header.php';
                         >
                     </div>
 
-                    <!-- Kolom Guru Pelapor sudah dihapus -->
+                    <?php if (!$is_guru || $show_guru_pelapor): ?>
+                    <div class="form-group col-md-4">
+                        <label>Guru Pelapor</label>
+                        <input class="form-control" value="<?= tl_h($edit_data['nama_guru'] ?? '-') ?>" readonly>
+                    </div>
+                    <?php endif; ?>
 
                     <div class="form-group col-md-4">
                         <label>Poin</label>
@@ -308,6 +318,7 @@ include 'header.php';
                         <th>Siswa</th>
                         <th>Kelas</th>
                         <th>Jenis Pelanggaran</th>
+                        <?php if (!$is_guru || $show_guru_pelapor): ?><th>Guru Pelapor</th><?php endif; ?>
                         <th>Poin</th>
                         <th>Tindakan Pembinaan</th>
                         <th>Status</th>
@@ -341,6 +352,12 @@ include 'header.php';
                             <td>
                                 <?= tl_h($row['nama_pelanggaran']) ?>
                             </td>
+
+                            <?php if (!$is_guru || $show_guru_pelapor): ?>
+                            <td>
+                                <?= tl_h($row['nama_guru'] ?? '-') ?>
+                            </td>
+                            <?php endif; ?>
 
                             <td class="text-center">
                                 <?= (int)$row['poin'] ?>

@@ -9,15 +9,21 @@ $filter_kelas_guru = " AND UPPER(TRIM(k.nama)) IN ('12 RPL 1', '12 RPL 2')";
 $error = '';
 $success = '';
 $guru_id_login = 0;
+$nama_guru_login = '';
+$show_guru_pelapor = false;
 $tahun = $koneksi->query("SELECT id, nama FROM t_tahun_ajaran WHERE status_aktif = 1 ORDER BY tanggal_mulai DESC, id DESC LIMIT 1")->fetch_assoc();
 $tahun_ajaran_id = (int)($tahun['id'] ?? 0);
 
 if ($is_guru) {
     $uid = (int)($_SESSION['user_id'] ?? 0);
-    $q = $koneksi->prepare("SELECT id FROM t_guru WHERE user_id = ? AND status_aktif = 1 LIMIT 1");
+    $q = $koneksi->prepare("SELECT id, nama FROM t_guru WHERE user_id = ? AND status_aktif = 1 LIMIT 1");
     $q->bind_param('i', $uid); $q->execute();
     $guru_login = $q->get_result()->fetch_assoc(); $q->close();
     $guru_id_login = (int)($guru_login['id'] ?? 0);
+    $nama_guru_login = $guru_login['nama'] ?? ($_SESSION['nama'] ?? $_SESSION['username'] ?? '');
+    // Kolom Guru Pelapor khusus ditampilkan untuk akun Ari Sandriana.
+    $show_guru_pelapor = (strcasecmp(trim($nama_guru_login), 'Ari Sandriana, S.Kom') === 0
+        || strcasecmp(trim($nama_guru_login), 'Ari Sandriana') === 0);
 }
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit'])) {
@@ -159,7 +165,15 @@ include 'header.php';
                     <select name="pelanggaran_id" class="form-control" required><option value="">-- Pilih Pelanggaran --</option><?php while($r=$pelanggaran_list->fetch_assoc()): ?><option value="<?= (int)$r['id'] ?>"><?= tp_h($r['kode'].' - '.$r['nama'].' ('.$r['poin'].' poin)') ?></option><?php endwhile; ?></select>
                     <?php endif; ?>
                 </div>
-                <?php if (!$is_guru): ?>
+                <?php if ($is_guru): ?>
+                    <?php if ($show_guru_pelapor): ?>
+                    <div class="form-group col-md-6">
+                        <label>Guru Pelapor</label>
+                        <input type="text" class="form-control" value="<?= tp_h($nama_guru_login) ?>" readonly>
+                        <small class="form-text text-muted">Terisi otomatis sesuai akun guru yang sedang login.</small>
+                    </div>
+                    <?php endif; ?>
+                <?php else: ?>
                 <div class="form-group col-md-6"><label>Guru Pelapor</label><select name="guru_id" class="form-control" required><option value="">-- Pilih Guru --</option><?php while($r=$guru_list->fetch_assoc()): ?><option value="<?= (int)$r['id'] ?>"><?= tp_h($r['nama']) ?></option><?php endwhile; ?></select></div>
                 <div class="form-group col-12"><label>Keterangan / Kronologi</label><textarea name="keterangan" class="form-control" rows="3" required></textarea></div>
                 <?php endif; ?>

@@ -38,7 +38,9 @@ $sql = "
         COALESCE(rp.total_poin, 0) AS total_poin
     FROM t_siswa s
     LEFT JOIN (
-        SELECT siswa_id, SUM(poin) AS total_poin
+        SELECT
+            siswa_id,
+            SUM(poin) AS total_poin
         FROM t_pelanggaran_siswa
         GROUP BY siswa_id
     ) rp ON s.id = rp.siswa_id

@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Waktu pembuatan: 11 Nov 2026 pada 12.11
+-- Waktu pembuatan: 13 Nov 2026 pada 04.42
 -- Versi server: 10.4.32-MariaDB
 -- Versi PHP: 8.2.12
 
@@ -62,7 +62,7 @@ INSERT INTO `t_guru` (`id`, `nip`, `nama`, `email`, `status_aktif`, `user_id`, `
 (4, '1980040004', 'Ansor Muhajir, S.T', 'ansormuhajir@gmail.com', 1, 4, '2026-01-01 01:00:00', '2026-09-23 01:00:00'),
 (5, '1980050005', 'Ari Sandriana, S.Kom', 'arisandriana@gmail.com', 1, 5, '2026-01-01 01:00:00', '2026-09-23 01:00:00'),
 (6, '1980060006', 'Arif Kusmawan, S.Pd', 'arifkusmawan@gmail.com', 1, 6, '2026-01-01 01:00:00', '2026-09-23 01:00:00'),
-(7, '1980070007', 'Asep Bastaman', 'asepbastaman@gmail.com', 1, 7, '2026-01-01 01:00:00', '2026-09-23 01:00:00'),
+(7, '1980070007', 'ARI SANDRIANA', 'asepbastaman@gmail.com', 1, 7, '2026-01-01 01:00:00', '2026-11-13 01:55:17'),
 (8, '1980080008', 'Asep Taufiq Hidayat, S.Kom', 'aseptaufiqhidayat@gmail.com', 1, 8, '2026-01-01 01:00:00', '2026-09-23 01:00:00'),
 (9, '1980090009', 'Chandra Aditya Yusup, S.Pd', 'chandraadityayusup@gmail.com', 1, 9, '2026-01-01 01:00:00', '2026-09-23 01:00:00'),
 (10, '1980100010', 'Dedi Kardiman, S.Pd', 'dedikardiman@gmail.com', 1, 10, '2026-01-01 01:00:00', '2026-09-23 01:00:00'),
@@ -502,7 +502,10 @@ INSERT INTO `t_pelanggaran_siswa` (`id`, `tahun_ajaran_id`, `siswa_id`, `nama_si
 (8, 1, 97, 'Julianda Dharma Pangestu', 51, '12 RPL 1', 21, 'Berbicara Tidak Sopan kepada Guru', 21, 2, 'Aldi Maulana', '2026-11-11', '', 47, 'Teguran lisan', 'Proses', '2026-11-11 09:08:21', '2026-11-11 09:08:21'),
 (9, 1, 58, 'Agan Basyri Sa\'ady', 6, '12 RPL 2', 21, 'Berbicara Tidak Sopan kepada Guru', 21, 2, 'Aldi Maulana', '2026-11-11', '', 47, 'Teguran tertulis', 'Proses', '2026-11-11 09:12:45', '2026-11-11 09:12:45'),
 (10, 1, 89, 'Alisa Ramadhani', 51, '12 RPL 1', 21, 'Berbicara Tidak Sopan kepada Guru', 21, 2, 'Aldi Maulana', '2026-11-11', '', 47, 'Teguran tertulis', 'Selesai', '2026-11-11 09:23:15', '2026-11-11 09:23:15'),
-(11, 1, 92, 'Azmil Amira', 6, '12 RPL 2', 37, 'Melanggar Tata Tertib Laboratorium', 37, 2, 'Aldi Maulana', '2026-11-11', '', 79, 'Pembinaan oleh guru BK', 'Proses', '2026-11-11 10:04:48', '2026-11-11 10:04:48');
+(11, 1, 92, 'Azmil Amira', 6, '12 RPL 2', 37, 'Melanggar Tata Tertib Laboratorium', 37, 2, 'Aldi Maulana', '2026-11-11', '', 79, 'Pembinaan oleh guru BK', 'Proses', '2026-11-11 10:04:48', '2026-11-11 10:04:48'),
+(12, 1, 1, 'Adittia Nur Lantip', 51, '12 RPL 1', 27, 'Melakukan Perundungan', 27, 2, 'Aldi Maulana', '2026-11-13', '', 59, 'Membuat surat pernyataan', 'Selesai', '2026-11-13 01:42:16', '2026-11-13 01:42:16'),
+(13, 1, 57, 'Adi Bayu Maulana Putra', 51, '12 RPL 1', 24, 'Berkata Kasar kepada Teman', 24, 7, 'ARI SANDRIANA', '2026-11-13', '', 53, '', 'Proses', '2026-11-13 02:39:07', '2026-11-13 02:39:07'),
+(14, 1, 58, 'Agan Basyri Sa\'ady', 6, '12 RPL 2', 30, 'Bermain Saat Pembelajaran', 30, 7, 'ARI SANDRIANA', '2026-11-13', '', 65, 'Pembinaan oleh wali kelas', 'Selesai', '2026-11-13 03:05:22', '2026-11-13 03:05:22');
 
 -- --------------------------------------------------------
 
@@ -770,7 +773,7 @@ INSERT INTO `t_users` (`id`, `name`, `email`, `email_verified_at`, `password`, `
 (4, 'Pengguna 4', 'user4@sekolah.sch.id', '2026-01-01 01:00:00', 'password4', 'token004', 'siswa', '2026-01-01 01:00:00', '2026-09-23 01:00:00'),
 (5, 'Pengguna 5', 'user5@sekolah.sch.id', '2026-01-01 01:00:00', 'password5', 'token005', 'petugas', '2026-01-01 01:00:00', '2026-09-23 01:00:00'),
 (6, 'Pengguna 6', 'user6@sekolah.sch.id', '2026-01-01 01:00:00', 'password6', 'token006', 'admin', '2026-01-01 01:00:00', '2026-09-23 01:00:00'),
-(7, 'Pengguna 7', 'user7@sekolah.sch.id', '2026-01-01 01:00:00', 'password7', 'token007', 'guru', '2026-01-01 01:00:00', '2026-09-23 01:00:00'),
+(7, 'ARI SANDRIANA', 'user7@sekolah.sch.id', '2026-01-01 01:00:00', '$2y$10$DZ7ugygRkOpfRMRBsz8ozOrc4ZMjvJq0FLZu9Kya/7aBycwAsJ2VC', 'token007', 'guru', '2026-01-01 01:00:00', '2026-11-13 01:55:15'),
 (8, 'Pengguna 8', 'user8@sekolah.sch.id', '2026-01-01 01:00:00', 'password8', 'token008', 'wali_kelas', '2026-01-01 01:00:00', '2026-09-23 01:00:00'),
 (9, 'Pengguna 9', 'user9@sekolah.sch.id', '2026-01-01 01:00:00', 'password9', 'token009', 'siswa', '2026-01-01 01:00:00', '2026-09-23 01:00:00'),
 (10, 'Pengguna 10', 'user10@sekolah.sch.id', '2026-01-01 01:00:00', 'password10', 'token010', 'petugas', '2026-01-01 01:00:00', '2026-09-23 01:00:00'),
@@ -1026,7 +1029,7 @@ ALTER TABLE `t_pelanggaran_kategori`
 -- AUTO_INCREMENT untuk tabel `t_pelanggaran_siswa`
 --
 ALTER TABLE `t_pelanggaran_siswa`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=12;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=15;
 
 --
 -- AUTO_INCREMENT untuk tabel `t_siswa`

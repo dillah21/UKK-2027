@@ -8,7 +8,7 @@ if ($siswa_id <= 0) {
     exit('ID siswa tidak valid.');
 }
 
-$stmt = $koneksi->prepare("SELECT s.id, s.nisn, s.nama FROM t_siswa s INNER JOIN t_kelas_siswa ks ON ks.siswa_id=s.id AND ks.status_aktif=1 INNER JOIN t_kelas k ON k.id=ks.kelas_id WHERE s.id = ? AND UPPER(TRIM(k.nama)) IN ('12 RPL 1', '12 RPL 2') ORDER BY ks.id DESC LIMIT 1");
+$stmt = $koneksi->prepare("SELECT s.id, s.nis, s.nisn, s.nama, COALESCE(k.nama, '-') AS nama_kelas FROM t_siswa s LEFT JOIN t_kelas_siswa ks ON ks.siswa_id=s.id AND ks.status_aktif=1 LEFT JOIN t_kelas k ON k.id=ks.kelas_id WHERE s.id = ? ORDER BY ks.id DESC LIMIT 1");
 $stmt->bind_param('i', $siswa_id);
 $stmt->execute();
 $siswa = $stmt->get_result()->fetch_assoc();
@@ -22,7 +22,7 @@ if (!$siswa) {
 $stmt = $koneksi->prepare("
     SELECT p.tanggal, p.nama_pelanggaran, p.poin, p.nama_kelas
     FROM t_pelanggaran_siswa p
-    WHERE p.siswa_id = ? AND UPPER(TRIM(p.nama_kelas)) IN ('12 RPL 1', '12 RPL 2')
+    WHERE p.siswa_id = ?
     ORDER BY p.tanggal ASC, p.id ASC
 ");
 $stmt->bind_param('i', $siswa_id);
@@ -31,11 +31,11 @@ $res_riwayat = $stmt->get_result();
 
 $total_poin = 0;
 $riwayat_list = [];
-$nama_kelas = '-';
+$nama_kelas = (string)($siswa['nama_kelas'] ?? '-');
 while ($r = $res_riwayat->fetch_assoc()) {
     $total_poin += (int)$r['poin'];
     $riwayat_list[] = $r;
-    if (!empty($r['nama_kelas'])) $nama_kelas = $r['nama_kelas'];
+    if ($nama_kelas === '-' && !empty($r['nama_kelas'])) $nama_kelas = $r['nama_kelas'];
 }
 $stmt->close();
 
@@ -95,7 +95,8 @@ table{width:100%;border-collapse:collapse;margin:15px 0}
 <p>Berdasarkan catatan poin pelanggaran tata tertib sekolah, disampaikan kepada orang tua/wali dari siswa:</p>
 <table class="data-siswa">
 <tr><td width="20%">Nama Siswa</td><td width="2%">:</td><td><b><?= sp_h($siswa['nama']) ?></b></td></tr>
-<tr><td>NISN</td><td>:</td><td><?= sp_h($siswa['nisn']) ?></td></tr>
+<tr><td>NIS</td><td>:</td><td><?= sp_h($siswa['nis'] ?? '-') ?></td></tr>
+<tr><td>NISN</td><td>:</td><td><?= sp_h($siswa['nisn'] ?? '-') ?></td></tr>
 <tr><td>Kelas</td><td>:</td><td><?= sp_h($nama_kelas) ?></td></tr>
 <tr><td>Total Poin Pelanggaran</td><td>:</td><td><b><?= $total_poin ?> Poin</b></td></tr>
 </table>

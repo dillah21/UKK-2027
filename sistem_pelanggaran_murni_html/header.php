@@ -359,6 +359,11 @@ if (isset($koneksi) && $koneksi instanceof mysqli) {
 
         <?php elseif (in_array($role, ['kepala sekolah', 'kepsek'], true)): ?>
 
+            <a href="riwayat_pelanggaran.php"
+               class="nav-link <?= $current_page === 'riwayat_pelanggaran.php' ? 'active' : ''; ?>">
+                <i class="fas fa-history"></i> Riwayat Pelanggaran
+            </a>
+
             <a href="laporan.php"
                class="nav-link <?= $current_page === 'laporan.php' ? 'active' : ''; ?>">
                 <i class="fas fa-file-alt"></i> Laporan & Rekap
@@ -396,6 +401,11 @@ if (isset($koneksi) && $koneksi instanceof mysqli) {
                 <i class="fas fa-school"></i> Kelas
             </a>
 
+            <a href="kelas_siswa.php"
+               class="nav-link <?= $current_page === 'kelas_siswa.php' ? 'active' : ''; ?>">
+                <i class="fas fa-users"></i> Penempatan Siswa
+            </a>
+
             <a href="wali_kelas.php"
                class="nav-link <?= $current_page === 'wali_kelas.php' ? 'active' : ''; ?>">
                 <i class="fas fa-user-tie"></i> Wali Kelas
@@ -415,7 +425,12 @@ if (isset($koneksi) && $koneksi instanceof mysqli) {
                class="nav-link <?= $current_page === 'pelanggaran.php' ? 'active' : ''; ?>">
                 <i class="fas fa-exclamation-triangle"></i> Jenis Pelanggaran
             </a>
-<a href="laporan.php"
+<a href="riwayat_pelanggaran.php"
+               class="nav-link <?= $current_page === 'riwayat_pelanggaran.php' ? 'active' : ''; ?>">
+                <i class="fas fa-history"></i> Riwayat Pelanggaran
+            </a>
+
+            <a href="laporan.php"
                class="nav-link <?= $current_page === 'laporan.php' ? 'active' : ''; ?>">
                 <i class="fas fa-file-alt"></i> Laporan & Rekap
             </a>
