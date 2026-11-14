@@ -46,7 +46,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['simpan_penempatan']))
         $valid = $q->get_result()->fetch_assoc(); $q->close();
         if (!$valid) throw new Exception('Data siswa tidak ditemukan.');
 
-        $q = $koneksi->prepare("SELECT id FROM t_kelas WHERE id=? AND UPPER(TRIM(nama)) IN ('12 RPL 1','12 RPL 2') LIMIT 1");
+        $q = $koneksi->prepare("SELECT id FROM t_kelas WHERE id=? AND status_aktif=1 LIMIT 1");
         $q->bind_param('i', $kelas_id); $q->execute();
         $valid = $q->get_result()->fetch_assoc(); $q->close();
         if (!$valid) throw new Exception('Kelas yang dipilih tidak valid.');
@@ -118,8 +118,7 @@ if (isset($_GET['edit'])) {
 }
 
 $list_siswa = $koneksi->query("SELECT id, nis, nama FROM t_siswa ORDER BY nama ASC");
-$list_kelas = $koneksi->query("SELECT id, nama FROM t_kelas
-    WHERE UPPER(TRIM(nama)) IN ('12 RPL 1','12 RPL 2') ORDER BY nama ASC");
+$list_kelas = $koneksi->query("SELECT id, nama FROM t_kelas WHERE status_aktif=1 ORDER BY tingkat, jurusan, nama ASC");
 $list_ta = $koneksi->query("SELECT id, nama FROM t_tahun_ajaran ORDER BY id DESC");
 
 // Daftar penempatan dan pencarian
@@ -129,7 +128,7 @@ $sql = "SELECT ks.*, s.nama AS nama_siswa, s.nis, k.nama AS nama_kelas, ta.nama 
         INNER JOIN t_siswa s ON s.id=ks.siswa_id
         INNER JOIN t_kelas k ON k.id=ks.kelas_id
         INNER JOIN t_tahun_ajaran ta ON ta.id=ks.tahun_ajaran_id
-        WHERE UPPER(TRIM(k.nama)) IN ('12 RPL 1','12 RPL 2')";
+        WHERE 1=1";
 if ($search !== '') {
     $sql .= " AND (s.nama LIKE ? OR s.nis LIKE ? OR k.nama LIKE ? OR ta.nama LIKE ?)";
     $param = '%' . $search . '%';

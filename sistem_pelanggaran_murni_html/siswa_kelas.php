@@ -46,7 +46,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['simpan_penempatan']))
         $valid = $q->get_result()->fetch_assoc(); $q->close();
         if (!$valid) throw new Exception('Data siswa tidak ditemukan.');
 
-        $q = $koneksi->prepare("SELECT id FROM t_kelas WHERE id=? AND UPPER(TRIM(nama)) IN ('12 RPL 1','12 RPL 2') LIMIT 1");
+        $q = $koneksi->prepare("SELECT id FROM t_kelas WHERE id=? AND status_aktif=1 LIMIT 1");
         $q->bind_param('i', $kelas_id); $q->execute();
         $valid = $q->get_result()->fetch_assoc(); $q->close();
         if (!$valid) throw new Exception('Kelas yang dipilih tidak valid.');
@@ -118,28 +118,18 @@ if (isset($_GET['edit'])) {
 }
 
 $list_siswa = $koneksi->query("SELECT id, nis, nama FROM t_siswa ORDER BY nama ASC");
-$list_kelas = $koneksi->query("SELECT id, nama FROM t_kelas
-    WHERE UPPER(TRIM(nama)) IN ('12 RPL 1','12 RPL 2') ORDER BY nama ASC");
+$list_kelas = $koneksi->query("SELECT id, nama FROM t_kelas WHERE status_aktif=1 ORDER BY tingkat, jurusan, nama ASC");
 $list_ta = $koneksi->query("SELECT id, nama FROM t_tahun_ajaran ORDER BY id DESC");
 
-// Daftar penempatan dan pencarian
-$search = trim($_GET['search'] ?? '');
+// Daftar penempatan: seluruh data dimuat agar pencarian, pengurutan,
+// dan pagination DataTables bekerja pada semua baris.
 $sql = "SELECT ks.*, s.nama AS nama_siswa, s.nis, k.nama AS nama_kelas, ta.nama AS nama_ta
         FROM t_kelas_siswa ks
         INNER JOIN t_siswa s ON s.id=ks.siswa_id
         INNER JOIN t_kelas k ON k.id=ks.kelas_id
         INNER JOIN t_tahun_ajaran ta ON ta.id=ks.tahun_ajaran_id
-        WHERE UPPER(TRIM(k.nama)) IN ('12 RPL 1','12 RPL 2')";
-if ($search !== '') {
-    $sql .= " AND (s.nama LIKE ? OR s.nis LIKE ? OR k.nama LIKE ? OR ta.nama LIKE ?)";
-    $param = '%' . $search . '%';
-    $stmt = $koneksi->prepare($sql . ' ORDER BY ks.id DESC');
-    $stmt->bind_param('ssss', $param, $param, $param, $param);
-    $stmt->execute();
-    $result = $stmt->get_result();
-} else {
-    $result = $koneksi->query($sql . ' ORDER BY ks.id DESC');
-}
+        ORDER BY ks.id DESC";
+$result = $koneksi->query($sql);
 
 include 'header.php';
 ?>
@@ -247,20 +237,8 @@ include 'header.php';
             <span class="text-muted small">Total data ditampilkan: <?= (int)$result->num_rows ?></span>
         </div>
         <div class="card-body">
-            <form method="GET" action="<?= ks_h(basename($_SERVER['PHP_SELF'])) ?>" class="form-row align-items-end mb-3">
-                <div class="form-group col-md-6 mb-2">
-                    <label for="search">Cari data</label>
-                    <input type="search" class="form-control" id="search" name="search"
-                        placeholder="Nama siswa, NIS, kelas, tahun ajaran..." value="<?= ks_h($search) ?>">
-                </div>
-                <div class="form-group col-auto mb-2">
-                    <button type="submit" class="btn btn-primary"><i class="fas fa-search mr-1"></i>Cari</button>
-                    <a href="<?= ks_h(basename($_SERVER['PHP_SELF'])) ?>" class="btn btn-light">Reset</a>
-                </div>
-            </form>
-
             <div class="table-responsive">
-                <table class="table table-bordered table-hover">
+                <table id="tabelPenempatanSiswa" class="table table-bordered table-hover table-striped w-100">
                     <thead>
                         <tr>
                             <th>No</th><th>NIS</th><th>Nama Siswa</th><th>Kelas</th>
@@ -297,8 +275,6 @@ include 'header.php';
                                 </td>
                             </tr>
                         <?php endwhile; ?>
-                    <?php else: ?>
-                        <tr><td colspan="9" class="text-center text-muted py-4">Data penempatan siswa tidak ditemukan.</td></tr>
                     <?php endif; ?>
                     </tbody>
                 </table>
@@ -307,4 +283,31 @@ include 'header.php';
     </div>
 </div>
 
+<script>
+$(document).ready(function () {
+    if ($.fn.DataTable) {
+        $('#tabelPenempatanSiswa').DataTable({
+            pageLength: 10,
+            lengthMenu: [[10, 25, 50, 100, -1], [10, 25, 50, 100, 'Semua']],
+            ordering: true,
+            searching: true,
+            paging: true,
+            info: true,
+            autoWidth: false,
+            order: [[0, 'asc']],
+            columnDefs: [{ targets: 8, orderable: false, searchable: false }],
+            language: {
+                search: 'Cari:',
+                lengthMenu: 'Tampilkan _MENU_ data per halaman',
+                info: 'Menampilkan _START_ sampai _END_ dari _TOTAL_ data',
+                infoEmpty: 'Belum ada data penempatan siswa',
+                infoFiltered: '(disaring dari _MAX_ total data)',
+                zeroRecords: 'Data penempatan siswa tidak ditemukan',
+                emptyTable: 'Belum ada data penempatan siswa',
+                paginate: { first: 'Pertama', last: 'Terakhir', next: 'Selanjutnya', previous: 'Sebelumnya' }
+            }
+        });
+    }
+});
+</script>
 <?php include 'footer.php'; ?>

@@ -61,7 +61,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['simpan_tindakan'])) {
             FROM t_pelanggaran_siswa ps
             INNER JOIN t_kelas k ON k.id = ps.kelas_id
             WHERE ps.id = ?
-            AND UPPER(TRIM(k.nama)) IN ('12 RPL 1', '12 RPL 2')
+            
             AND COALESCE(LOWER(TRIM(ps.status)), 'proses') <> 'selesai'
             " . ($is_guru ? ' AND ps.guru_id = ?' : '') . "
             LIMIT 1
@@ -108,7 +108,7 @@ if ($edit_id > 0) {
         LEFT JOIN t_siswa s ON s.id = ps.siswa_id
         INNER JOIN t_kelas k ON k.id = ps.kelas_id
         WHERE ps.id = ?
-        AND UPPER(TRIM(k.nama)) IN ('12 RPL 1', '12 RPL 2')
+        
         AND COALESCE(LOWER(TRIM(ps.status)), 'proses') <> 'selesai'
         " . ($is_guru ? ' AND ps.guru_id = ?' : '') . "
         LIMIT 1
@@ -139,7 +139,7 @@ $sql_list = "
     FROM t_pelanggaran_siswa ps
     LEFT JOIN t_siswa s ON s.id = ps.siswa_id
     INNER JOIN t_kelas k ON k.id = ps.kelas_id
-    WHERE UPPER(TRIM(k.nama)) IN ('12 RPL 1', '12 RPL 2')
+    WHERE 1=1
     " . $ownWhere . "
     ORDER BY ps.tanggal DESC, ps.id DESC
 ";

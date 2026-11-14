@@ -1,11 +1,11 @@
 -- phpMyAdmin SQL Dump
--- version 5.2.1
+-- version 5.2.3
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1
--- Waktu pembuatan: 13 Nov 2026 pada 04.42
--- Versi server: 10.4.32-MariaDB
--- Versi PHP: 8.2.12
+-- Waktu pembuatan: 14 Nov 2026 pada 05.54
+-- Versi server: 10.11.16-MariaDB
+-- Versi PHP: 8.5.12
 
 SET SQL_MODE = "NO_AUTO_VALUE_ON_ZERO";
 START TRANSACTION;
@@ -18,7 +18,7 @@ SET time_zone = "+00:00";
 /*!40101 SET NAMES utf8mb4 */;
 
 --
--- Database: `db_ukk_2026`
+-- Basis data: `db_ukk_2026`
 --
 
 -- --------------------------------------------------------
@@ -129,10 +129,8 @@ CREATE TABLE `t_kelas` (
 
 INSERT INTO `t_kelas` (`id`, `nama`, `tingkat`, `jurusan`, `status_aktif`, `created_at`, `updated_at`) VALUES
 (1, '10 RPL 1', '10', 'RPL', 1, '2026-01-01 01:00:00', '2026-09-23 01:00:00'),
-(2, '11 TKJ 1', '11', 'TKJ', 1, '2026-01-01 01:00:00', '2026-09-23 01:00:00'),
 (3, '12 TKR 1', '12', 'TKR', 1, '2026-01-01 01:00:00', '2026-09-23 01:00:00'),
 (4, '10 BDPM 1', '10', 'BDPM', 1, '2026-01-01 01:00:00', '2026-09-23 01:00:00'),
-(5, '11 TSM 1', '11', 'TSM', 1, '2026-01-01 01:00:00', '2026-09-23 01:00:00'),
 (6, '12 RPL 2', '12', 'RPL', 1, '2026-01-01 01:00:00', '2026-09-23 01:00:00'),
 (7, '10 TKJ 2', '10', 'TKJ', 1, '2026-01-01 01:00:00', '2026-09-23 01:00:00'),
 (8, '11 TKR 2', '11', 'TKR', 1, '2026-01-01 01:00:00', '2026-09-23 01:00:00'),
@@ -314,6 +312,26 @@ INSERT INTO `t_kelas_siswa` (`id`, `siswa_id`, `tahun_ajaran_id`, `kelas_id`, `t
 (109, 109, 1, 51, '2026-07-01', '2027-06-30', 1, '2026-11-10 16:45:12', '2026-11-11 05:09:52'),
 (110, 110, 1, 6, '2026-07-01', '2027-06-30', 1, '2026-11-10 16:45:12', '2026-11-11 05:09:52'),
 (111, 111, 1, 51, '2026-07-01', '2027-06-30', 1, '2026-11-10 16:45:12', '2026-11-11 05:09:52');
+
+-- --------------------------------------------------------
+
+--
+-- Struktur dari tabel `t_kelas_tampil_admin`
+--
+
+CREATE TABLE `t_kelas_tampil_admin` (
+  `kelas_id` int(11) NOT NULL,
+  `created_at` timestamp NOT NULL DEFAULT current_timestamp()
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_general_ci;
+
+--
+-- Dumping data untuk tabel `t_kelas_tampil_admin`
+--
+
+INSERT INTO `t_kelas_tampil_admin` (`kelas_id`, `created_at`) VALUES
+(56, '2026-11-14 04:41:15'),
+(57, '2026-11-14 04:41:38'),
+(58, '2026-11-14 04:44:21');
 
 -- --------------------------------------------------------
 
@@ -767,13 +785,13 @@ CREATE TABLE `t_users` (
 --
 
 INSERT INTO `t_users` (`id`, `name`, `email`, `email_verified_at`, `password`, `remember_token`, `role`, `created_at`, `updated_at`) VALUES
-(1, 'Azril', 'user1@sekolah.sch.id', '2026-01-01 01:00:00', '$2y$10$P2KP5arCY/wIKtVYNejzg.olmG40L.y0OC5aTvcjRIpAml0tdZlRu', 'token001', 'admin', '2026-01-01 01:00:00', '2026-11-11 07:07:43'),
-(2, 'Pengguna 2', 'user2@sekolah.sch.id', '2026-01-01 01:00:00', '$2y$10$LztgwBezfMJX0eTIPu9Iye2CM6EOeKi.5yi2Qtz3AY.VeELZxd2Gu', 'token002', 'guru', '2026-01-01 01:00:00', '2026-11-11 07:07:43'),
+(1, 'Azril', 'user1@sekolah.sch.id', '2026-01-01 01:00:00', '$2y$12$ozFT5awA0qlqD8S1bSvUFux7PGRk5CxzVD4cV.KZj89URWOxzj3ba', 'token001', 'admin', '2026-01-01 01:00:00', '2026-11-11 07:07:43'),
+(2, 'Pengguna 2', 'user2@sekolah.sch.id', '2026-01-01 01:00:00', '$2y$12$CUw2HglTPSnNncYB./wUVuxa3ItVMoaPsf2GLb4XhzgR0rJBhYgeK', 'token002', 'guru', '2026-01-01 01:00:00', '2026-11-11 07:07:43'),
 (3, 'Pengguna 3', 'user3@sekolah.sch.id', '2026-01-01 01:00:00', '$2y$10$OYJ3B7DNOR3YFt1k2kUTyOErCoBZLRLFMFQQ8u7PRuKunT2JXCImm', 'token003', 'wali_kelas', '2026-01-01 01:00:00', '2026-09-23 01:00:00'),
 (4, 'Pengguna 4', 'user4@sekolah.sch.id', '2026-01-01 01:00:00', 'password4', 'token004', 'siswa', '2026-01-01 01:00:00', '2026-09-23 01:00:00'),
 (5, 'Pengguna 5', 'user5@sekolah.sch.id', '2026-01-01 01:00:00', 'password5', 'token005', 'petugas', '2026-01-01 01:00:00', '2026-09-23 01:00:00'),
 (6, 'Pengguna 6', 'user6@sekolah.sch.id', '2026-01-01 01:00:00', 'password6', 'token006', 'admin', '2026-01-01 01:00:00', '2026-09-23 01:00:00'),
-(7, 'ARI SANDRIANA', 'user7@sekolah.sch.id', '2026-01-01 01:00:00', '$2y$10$DZ7ugygRkOpfRMRBsz8ozOrc4ZMjvJq0FLZu9Kya/7aBycwAsJ2VC', 'token007', 'guru', '2026-01-01 01:00:00', '2026-11-13 01:55:15'),
+(7, 'ARI SANDRIANA', 'user7@sekolah.sch.id', '2026-01-01 01:00:00', '$2y$12$DfpLFOkVXVV6bwEtcP12y.DfxA7cBly.XQPJ8e91Bl4/CN.2uV2ZO', 'token007', 'guru', '2026-01-01 01:00:00', '2026-11-13 01:55:15'),
 (8, 'Pengguna 8', 'user8@sekolah.sch.id', '2026-01-01 01:00:00', 'password8', 'token008', 'wali_kelas', '2026-01-01 01:00:00', '2026-09-23 01:00:00'),
 (9, 'Pengguna 9', 'user9@sekolah.sch.id', '2026-01-01 01:00:00', 'password9', 'token009', 'siswa', '2026-01-01 01:00:00', '2026-09-23 01:00:00'),
 (10, 'Pengguna 10', 'user10@sekolah.sch.id', '2026-01-01 01:00:00', 'password10', 'token010', 'petugas', '2026-01-01 01:00:00', '2026-09-23 01:00:00'),
@@ -893,7 +911,7 @@ INSERT INTO `t_wali_kelas` (`id`, `tahun_ajaran_id`, `kelas_id`, `guru_id`, `tan
 (50, 50, 50, 50, '2026-07-01', '2027-06-30', 1, '2026-01-01 01:00:00', '2026-09-23 01:00:00');
 
 --
--- Indexes for dumped tables
+-- Indeks untuk tabel yang dibuang
 --
 
 --
@@ -923,6 +941,12 @@ ALTER TABLE `t_kelas_siswa`
   ADD KEY `siswa_id` (`siswa_id`),
   ADD KEY `tahun_ajaran_id` (`tahun_ajaran_id`),
   ADD KEY `kelas_id` (`kelas_id`);
+
+--
+-- Indeks untuk tabel `t_kelas_tampil_admin`
+--
+ALTER TABLE `t_kelas_tampil_admin`
+  ADD PRIMARY KEY (`kelas_id`);
 
 --
 -- Indeks untuk tabel `t_pelanggaran`
@@ -1005,7 +1029,7 @@ ALTER TABLE `t_guru`
 -- AUTO_INCREMENT untuk tabel `t_kelas`
 --
 ALTER TABLE `t_kelas`
-  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=52;
+  MODIFY `id` int(11) NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=59;
 
 --
 -- AUTO_INCREMENT untuk tabel `t_kelas_siswa`

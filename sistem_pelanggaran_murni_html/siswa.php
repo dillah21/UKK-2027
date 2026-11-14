@@ -33,14 +33,11 @@ function formatKelas($tingkat, $jurusan, $nama) {
     ));
 }
 
-// Semua role dibatasi pada dua rombel kelas 12 RPL.
+// Semua role dapat memilih kelas aktif yang tersedia.
 function kelasAdminDiizinkan($koneksi, $kelas_id) {
     $stmt = $koneksi->prepare(
         "SELECT id FROM t_kelas
          WHERE id = ?
-           AND tingkat = 12
-           AND UPPER(TRIM(jurusan)) = 'RPL'
-           AND TRIM(nama) IN ('12 RPL 1', '12 RPL 2')
            AND status_aktif = 1
          LIMIT 1"
     );
@@ -77,7 +74,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['tambah_siswa'])) {
     $nama = trim($_POST['nama'] ?? '');
     $kelas_id = (int)($_POST['kelas_id'] ?? 0);
     if ($kelas_id > 0 && !kelasAdminDiizinkan($koneksi, $kelas_id)) {
-        $pesan_error = 'Hanya kelas 12 RPL 1 atau 12 RPL 2 yang dapat dipilih.';
+        $pesan_error = 'Kelas tidak ditemukan atau tidak aktif.';
     }
     $jk = $_POST['jk'] ?? 'L';
     $tanggal_lahir = trim($_POST['tanggal_lahir'] ?? '2008-01-01');
@@ -190,7 +187,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_siswa'])) {
     $nama = trim($_POST['nama'] ?? '');
     $kelas_id = (int)($_POST['kelas_id'] ?? 0);
     if ($kelas_id > 0 && !kelasAdminDiizinkan($koneksi, $kelas_id)) {
-        $pesan_error = 'Hanya kelas 12 RPL 1 atau 12 RPL 2 yang dapat dipilih.';
+        $pesan_error = 'Kelas tidak ditemukan atau tidak aktif.';
     }
     $jk = $_POST['jk'] ?? 'L';
     $tanggal_lahir = trim($_POST['tanggal_lahir'] ?? '2008-01-01');
@@ -326,10 +323,10 @@ if (isset($_GET['action'], $_GET['id']) && $_GET['action'] === 'hapus') {
 // ======================================
 // AMBIL DATA KELAS & SISWA
 // ======================================
-// Semua role hanya menampilkan siswa dan pilihan kelas dari 12 RPL 1 serta 12 RPL 2.
+// Semua role menampilkan siswa dari seluruh kelas aktif.
 $list_kelas = $koneksi->query(
     "SELECT id, nama, tingkat, jurusan FROM t_kelas
-     WHERE UPPER(TRIM(nama)) IN ('12 RPL 1', '12 RPL 2') AND status_aktif = 1
+     WHERE status_aktif = 1
      ORDER BY nama ASC"
 );
 $result_siswa = $koneksi->query(
@@ -338,7 +335,7 @@ $result_siswa = $koneksi->query(
      FROM t_siswa s
      INNER JOIN t_kelas_siswa ks ON s.id = ks.siswa_id AND ks.status_aktif = 1
      INNER JOIN t_kelas k ON ks.kelas_id = k.id
-     WHERE s.status_aktif = 1 AND UPPER(TRIM(k.nama)) IN ('12 RPL 1', '12 RPL 2')
+     WHERE s.status_aktif = 1
      ORDER BY k.nama ASC, s.nama ASC"
 );
 
@@ -470,7 +467,7 @@ include 'header.php';
                     <select name="kelas_id" id="edit_kelas" class="form-control">
                         <option value="0">-- Pilih Kelas --</option>
                         <?php
-                        $kelas_edit = $koneksi->query("SELECT id, nama, tingkat, jurusan FROM t_kelas WHERE UPPER(TRIM(nama)) IN ('12 RPL 1', '12 RPL 2') ORDER BY nama");
+                        $kelas_edit = $koneksi->query("SELECT id, nama, tingkat, jurusan FROM t_kelas WHERE status_aktif = 1 ORDER BY tingkat, jurusan, nama");
                         if ($kelas_edit):
                             while ($kls = $kelas_edit->fetch_assoc()):
                         ?>

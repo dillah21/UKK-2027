@@ -17,7 +17,7 @@ if ($tgl_mulai !== '' && $tgl_selesai !== '' && $tgl_selesai < $tgl_mulai) {
 }
 
 $sql = "SELECT ps.id, ps.tanggal, ps.nama_siswa, ps.nama_kelas, ps.nama_pelanggaran, ps.poin
-        FROM t_pelanggaran_siswa ps INNER JOIN t_kelas k ON k.id = ps.kelas_id WHERE UPPER(TRIM(k.nama)) IN ('12 RPL 1', '12 RPL 2')";
+        FROM t_pelanggaran_siswa ps INNER JOIN t_kelas k ON k.id = ps.kelas_id WHERE 1=1";
 $types = '';
 $params = [];
 

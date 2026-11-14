@@ -5,7 +5,7 @@ mysqli_report(MYSQLI_REPORT_ERROR | MYSQLI_REPORT_STRICT);
 
 $role_login = strtolower(trim($_SESSION['role'] ?? ''));
 $is_guru = ($role_login === 'guru');
-$filter_kelas_guru = " AND UPPER(TRIM(k.nama)) IN ('12 RPL 1', '12 RPL 2')";
+$filter_kelas_guru = "";
 $error = '';
 $success = '';
 $guru_id_login = 0;
@@ -58,11 +58,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit'])) {
             $q->bind_param('ii', $siswa_id, $tahun_ajaran_id);
         } else {
             $kelas_id_post = (int)($_POST['kelas_id'] ?? 0);
-            $q = $koneksi->prepare("SELECT id, nama FROM t_kelas WHERE id = ? AND status_aktif = 1 AND UPPER(TRIM(nama)) IN ('12 RPL 1', '12 RPL 2') LIMIT 1");
+            $q = $koneksi->prepare("SELECT id, nama FROM t_kelas WHERE id = ? AND status_aktif = 1 LIMIT 1");
             $q->bind_param('i', $kelas_id_post);
         }
         $q->execute(); $kelas = $q->get_result()->fetch_assoc(); $q->close();
-        if (!$kelas) throw new Exception($is_guru ? 'Siswa belum ditempatkan di kelas 12 RPL 1 atau 12 RPL 2 pada tahun ajaran aktif.' : 'Kelas tidak ditemukan atau tidak aktif.');
+        if (!$kelas) throw new Exception($is_guru ? 'Siswa belum ditempatkan di kelas aktif pada tahun ajaran aktif.' : 'Kelas tidak ditemukan atau tidak aktif.');
         $kelas_id = (int)$kelas['id'];
 
         $q = $koneksi->prepare("SELECT nama, poin, pelanggaran_kategori_id FROM t_pelanggaran WHERE id = ? AND status_aktif = 1 LIMIT 1");
@@ -108,7 +108,7 @@ if ($is_guru) {
 } else {
     $siswa_list = $koneksi->query("SELECT id, nis, nama FROM t_siswa WHERE status_aktif = 1 ORDER BY nama");
 }
-$kelas_list = $koneksi->query("SELECT id, nama FROM t_kelas WHERE status_aktif = 1 AND UPPER(TRIM(nama)) IN ('12 RPL 1', '12 RPL 2') ORDER BY nama");
+$kelas_list = $koneksi->query("SELECT id, nama FROM t_kelas WHERE status_aktif = 1 ORDER BY tingkat, jurusan, nama");
 $pelanggaran_list = $koneksi->query("SELECT id, kode, nama, poin FROM t_pelanggaran WHERE status_aktif = 1 ORDER BY nama");
 $guru_list = $koneksi->query("SELECT id, nama FROM t_guru WHERE status_aktif = 1 ORDER BY nama");
 include 'header.php';

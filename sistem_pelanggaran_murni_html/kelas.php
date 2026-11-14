@@ -10,11 +10,28 @@ error_reporting(E_ALL);
 require_once 'auth.php';
 require_once 'koneksi.php';
 
+// Menandai kelas yang dibuat melalui form ini agar dapat ditampilkan,
+// tanpa membuka kembali kelas lama lain yang sebelumnya disembunyikan.
+$koneksi->query("CREATE TABLE IF NOT EXISTS t_kelas_tampil_admin (
+    kelas_id INT(11) NOT NULL PRIMARY KEY,
+    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4");
+
+// Bersihkan master kelas lama yang benar-benar tidak dipakai.
+// Kelas yang masih memiliki relasi siswa, wali kelas, atau riwayat pelanggaran
+// sengaja dipertahankan agar foreign key dan histori tetap utuh.
+$koneksi->query("DELETE k FROM t_kelas k
+    WHERE UPPER(TRIM(k.nama)) NOT IN ('12 RPL 1', '12 RPL 2')
+      AND NOT EXISTS (SELECT 1 FROM t_kelas_siswa ks WHERE ks.kelas_id = k.id)
+      AND NOT EXISTS (SELECT 1 FROM t_wali_kelas wk WHERE wk.kelas_id = k.id)
+      AND NOT EXISTS (SELECT 1 FROM t_pelanggaran_siswa ps WHERE ps.kelas_id = k.id)
+      AND NOT EXISTS (SELECT 1 FROM t_kelas_tampil_admin ta WHERE ta.kelas_id = k.id)");
+
 $pesan_sukses = '';
 $pesan_error = '';
 
 $daftar_jurusan = ['RPL', 'TKJ', 'TKR', 'TSM', 'BDPM'];
-$daftar_nama_kelas_admin = ['12 RPL 1', '12 RPL 2'];
+
 
 function e($value) {
     return htmlspecialchars((string)($value ?? ''), ENT_QUOTES, 'UTF-8');
@@ -51,16 +68,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['tambah_kelas'])) {
 
     $tingkat = (int)($_POST['tingkat'] ?? 0);
     $jurusan = strtoupper(trim($_POST['jurusan'] ?? ''));
-    $rombel = trim($_POST['rombel'] ?? '');
     $nama = trim($_POST['nama_kelas'] ?? '');
 
     if (
         !in_array($tingkat, [10, 11, 12], true) ||
         !in_array($jurusan, $daftar_jurusan, true) ||
-        !preg_match('/^[1-9][0-9]?$/', $rombel) ||
         $nama === '' || strlen($nama) > 100
     ) {
-        $pesan_error = 'Lengkapi tingkat, jurusan, nomor rombel, dan nama kelas dengan benar!';
+        $pesan_error = 'Lengkapi tingkat, jurusan, dan nama kelas dengan benar!';
     } elseif (kelasSudahAda($koneksi, $nama)) {
         $pesan_error = 'Nama kelas tersebut sudah terdaftar!';
     } else {
@@ -73,9 +88,16 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['tambah_kelas'])) {
 
             $stmt->bind_param("sis", $nama, $tingkat, $jurusan);
             $stmt->execute();
+            $id_kelas_baru = (int)$koneksi->insert_id;
             $stmt->close();
 
-            $pesan_sukses = 'Kelas berhasil ditambahkan!';
+            // Simpan penanda supaya kelas baru muncul di tabel admin.
+            $tampil = $koneksi->prepare("INSERT INTO t_kelas_tampil_admin (kelas_id) VALUES (?)");
+            $tampil->bind_param('i', $id_kelas_baru);
+            $tampil->execute();
+            $tampil->close();
+
+            $pesan_sukses = 'Kelas ' . $nama . ' berhasil disimpan dan ditampilkan pada daftar kelas!';
 
         } catch (Throwable $e) {
             error_log('Error tambah kelas: ' . $e->getMessage());
@@ -97,9 +119,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['edit_kelas'])) {
 
     if (
         $id <= 0 ||
-        !in_array($tingkat, [12], true) ||
+        !in_array($tingkat, [10, 11, 12], true) ||
         !in_array($jurusan, $daftar_jurusan, true) ||
-        !in_array($nama, $daftar_nama_kelas_admin, true)
+        $nama === '' ||
+        strlen($nama) > 100
     ) {
         $pesan_error = 'Data kelas tidak valid!';
     } elseif (kelasSudahAda($koneksi, $nama, $id)) {
@@ -189,16 +212,19 @@ if (
 }
 
 // =====================================================
-// AMBIL SEMUA KELAS RPL TINGKAT 10, 11, DAN 12
+// TAMPILKAN DUA KELAS UTAMA DAN KELAS BARU YANG DITAMBAHKAN
+// MELALUI FORM INI. Master kelas lama yang tidak terpakai sudah dibersihkan.
 // =====================================================
 
 $result_kelas = $koneksi->query("
-    SELECT id, nama, tingkat, jurusan
-    FROM t_kelas
-    WHERE UPPER(TRIM(jurusan)) = 'RPL'
-      AND tingkat = 12
-      AND TRIM(nama) IN ('12 RPL 1', '12 RPL 2')
-    ORDER BY tingkat ASC, nama ASC
+    SELECT k.id, k.nama, k.tingkat, k.jurusan
+    FROM t_kelas k
+    WHERE UPPER(TRIM(k.nama)) IN ('12 RPL 1', '12 RPL 2')
+       OR EXISTS (
+            SELECT 1 FROM t_kelas_tampil_admin ta
+            WHERE ta.kelas_id = k.id
+       )
+    ORDER BY k.tingkat ASC, k.jurusan ASC, k.nama ASC, k.id ASC
 ");
 
 include 'header.php';
@@ -212,7 +238,7 @@ include 'header.php';
         <div>
             <h1 class="h2 mb-1">Manajemen Data Kelas</h1>
             <p class="text-muted mb-0">
-                Daftar utama menampilkan 12 RPL 1 dan 12 RPL 2. Admin tetap dapat menambahkan kelas dari jurusan lain.
+                Daftar menampilkan 12 RPL 1, 12 RPL 2, serta kelas baru yang ditambahkan melalui form ini. Master kelas lama yang tidak memiliki relasi sudah dibersihkan; kelas yang masih terkait riwayat tetap dijaga.
             </p>
         </div>
 
@@ -397,26 +423,17 @@ include 'header.php';
                 </div>
 
                 <div class="form-group">
-                    <label>Nomor Rombel</label>
-                    <input type="number" name="rombel" class="form-control"
-                           min="1" max="99" placeholder="Contoh: 1" required>
-                    <small class="form-text text-muted">
-                        Nama kelas akan dibuat otomatis, misalnya 10 TKJ 1 atau 12 RPL 3.
-                    </small>
-                </div>
-
-                <div class="form-group">
                     <label>Nama Kelas</label>
                     <input type="text" name="nama_kelas" id="nama_kelas_baru"
                            class="form-control" maxlength="100"
                            placeholder="Contoh: 12 TKJ 1" required>
                     <small class="form-text text-muted">
-                        Nama kelas dapat diedit sesuai kebutuhan. Contoh: 12 TKJ 1 atau 11 TKR A.
+                        Masukkan nama kelas yang ingin ditambahkan, misalnya 12 RPL 3.
                     </small>
                 </div>
 
                 <div class="alert alert-info mb-0">
-                    Kelas baru akan tersimpan di database, tetapi daftar utama tetap hanya menampilkan 12 RPL 1 dan 12 RPL 2.
+                    Setelah disimpan, kelas baru akan langsung muncul pada tabel Daftar Kelas.
                 </div>
             </div>
 
@@ -478,7 +495,10 @@ include 'header.php';
                             id="edit_tingkat"
                             class="form-control"
                             required>
-                        <option value="12" selected>12</option>
+                        <option value="">-- Pilih Tingkat --</option>
+                        <option value="10">10</option>
+                        <option value="11">11</option>
+                        <option value="12">12</option>
                     </select>
                 </div>
 
@@ -613,26 +633,6 @@ $(document).ready(function () {
                 previous: 'Sebelumnya'
             }
         }
-    });
-
-    // Bantu isi nama kelas otomatis berdasarkan tingkat, jurusan, dan rombel.
-    var namaKelasDiisiOtomatis = true;
-    function perbaruiNamaKelasBaru() {
-        if (!namaKelasDiisiOtomatis) return;
-        var tingkat = $('[name="tingkat"]').first().val();
-        var jurusan = $('[name="jurusan"]').first().val();
-        var rombel = $('[name="rombel"]').val();
-        if (tingkat && jurusan && rombel) {
-            $('#nama_kelas_baru').val(tingkat + ' ' + jurusan + ' ' + rombel);
-        }
-    }
-    $('[name="tingkat"], [name="jurusan"], [name="rombel"]').on('change input', perbaruiNamaKelasBaru);
-    $('#nama_kelas_baru').on('input', function () {
-        namaKelasDiisiOtomatis = false;
-    });
-    $('#modalKelas').on('show.bs.modal', function () {
-        namaKelasDiisiOtomatis = true;
-        $('#nama_kelas_baru').val('');
     });
 
     // EDIT KELAS

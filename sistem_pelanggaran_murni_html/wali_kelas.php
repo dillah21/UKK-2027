@@ -123,8 +123,6 @@ try {
         SELECT id, nama, tingkat, jurusan
         FROM t_kelas
         WHERE status_aktif = 1
-          AND UPPER(TRIM(jurusan)) = 'RPL'
-          AND nama IN ('12 RPL 1', '12 RPL 2')
         ORDER BY tingkat, jurusan, nama
     ");
 
@@ -141,8 +139,7 @@ try {
         SELECT id, nama, nip
         FROM t_guru
         WHERE status_aktif = 1
-          AND nip IN ('1980050005', '1980020002')
-        ORDER BY CASE nip WHEN '1980050005' THEN 1 WHEN '1980020002' THEN 2 ELSE 3 END
+        ORDER BY nama
     ");
 
     while ($row = $res->fetch_assoc()) {
@@ -210,18 +207,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 throw new Exception('Guru tidak aktif atau tidak ditemukan.');
             }
 
-            // Penugasan admin dibatasi tepat pada dua wali kelas RPL yang ditentukan.
-            $guru_diizinkan = [2, 5];
-            $kelas_diizinkan = array_map('intval', array_column($kelas_list, 'id'));
-            if (!in_array($guru_id, $guru_diizinkan, true) || !in_array($kelas_id, $kelas_diizinkan, true)) {
-                throw new Exception('Hanya Ari Sandriana dan Aldi Maulana untuk kelas 12 RPL 1 dan 12 RPL 2 yang diizinkan.');
-            }
-            if (!$is_edit) {
-                $jumlah_wali = (int)$koneksi->query("SELECT COUNT(*) AS total FROM t_wali_kelas WHERE tahun_ajaran_id = 1 AND guru_id IN (2,5) AND kelas_id IN (6,51)")->fetch_assoc()['total'];
-                if ($jumlah_wali >= 2) {
-                    throw new Exception('Maksimal hanya 2 wali kelas yang dapat didaftarkan.');
-                }
-            }
 
             // Cegah kelas memiliki lebih dari satu wali kelas aktif pada tahun ajaran yang sama
             if ($status === 1) {

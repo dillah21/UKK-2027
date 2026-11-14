@@ -66,7 +66,7 @@ $sql = "
 ";
 
 // Semua role hanya menampilkan siswa dari dua kelas yang digunakan.
-$sql .= " WHERE UPPER(TRIM(k_aktif.nama)) IN ('12 RPL 1', '12 RPL 2')";
+$sql .= " WHERE 1=1";
 
 $sql .= " ORDER BY total_poin DESC, s.nama ASC";
 $result = $koneksi->query($sql);

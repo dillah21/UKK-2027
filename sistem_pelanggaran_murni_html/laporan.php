@@ -21,7 +21,7 @@ $teleponSekolah = '(0265) 123456';
 $tahunAjaran = '2026/2027';
 
 // ========================================
-// AMBIL DATA PELANGGARAN KELAS 12 RPL
+// AMBIL DATA PELANGGARAN SELURUH KELAS
 // ========================================
 
 $sql = "
@@ -44,8 +44,7 @@ $sql = "
         ON p.kelas_id = k.id
     LEFT JOIN t_pelanggaran_kategori kat
         ON p.pelanggaran_kategori_id = kat.id
-    WHERE UPPER(TRIM(COALESCE(k.nama, p.nama_kelas)))
-        IN ('12 RPL 1', '12 RPL 2')
+    WHERE 1=1
     ORDER BY p.tanggal DESC, p.id DESC
 ";
 
@@ -501,7 +500,7 @@ href="https://cdn.datatables.net/1.13.6/css/dataTables.bootstrap4.min.css">
             </h1>
 
             <p class="text-muted mb-0">
-                Rekap pelanggaran siswa kelas 12 RPL 1 dan 12 RPL 2
+                Rekap pelanggaran seluruh kelas
             </p>
 
         </div>
